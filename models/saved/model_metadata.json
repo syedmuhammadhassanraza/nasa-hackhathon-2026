@@ -1,0 +1,170 @@
+{
+  "features": [
+    "hr_mean",
+    "sdnn",
+    "rmssd",
+    "resp_rate",
+    "eda_mean",
+    "eda_std",
+    "eda_slope",
+    "temp_mean",
+    "temp_slope",
+    "acc_mean",
+    "acc_std",
+    "hr_mean_z",
+    "sdnn_z",
+    "rmssd_z",
+    "resp_rate_z",
+    "eda_mean_z",
+    "eda_std_z",
+    "eda_slope_z",
+    "temp_mean_z",
+    "temp_slope_z",
+    "acc_mean_z",
+    "acc_std_z"
+  ],
+  "features_raw": [
+    "hr_mean",
+    "sdnn",
+    "rmssd",
+    "resp_rate",
+    "eda_mean",
+    "eda_std",
+    "eda_slope",
+    "temp_mean",
+    "temp_slope",
+    "acc_mean",
+    "acc_std"
+  ],
+  "features_z": [
+    "hr_mean_z",
+    "sdnn_z",
+    "rmssd_z",
+    "resp_rate_z",
+    "eda_mean_z",
+    "eda_std_z",
+    "eda_slope_z",
+    "temp_mean_z",
+    "temp_slope_z",
+    "acc_mean_z",
+    "acc_std_z"
+  ],
+  "classes": [
+    "amusement",
+    "baseline",
+    "meditation",
+    "stress"
+  ],
+  "metrics": {
+    "dataset_windows": 1377,
+    "subjects": 15,
+    "states_distribution": {
+      "baseline": 562,
+      "meditation": 345,
+      "stress": 307,
+      "amusement": 163
+    },
+    "cv_binary_accuracy_mean": 0.8953667234067106,
+    "cv_binary_accuracy_std": 0.058289650979308084,
+    "cv_binary_f1_mean": 0.6961173648909822,
+    "cv_binary_f1_std": 0.20530769648761907,
+    "cv_binary_roc_auc_mean": 0.9402201106346858,
+    "cv_binary_roc_auc_std": 0.05069634067550471,
+    "classes": [
+      "amusement",
+      "baseline",
+      "meditation",
+      "stress"
+    ],
+    "feature_importances": [
+      [
+        "hr_mean_z",
+        0.3906312483469416
+      ],
+      [
+        "acc_std",
+        0.251567393936608
+      ],
+      [
+        "eda_slope",
+        0.1106292084872806
+      ],
+      [
+        "eda_std_z",
+        0.04996950592566154
+      ],
+      [
+        "temp_mean_z",
+        0.04842367105188118
+      ],
+      [
+        "hr_mean",
+        0.03439534443440457
+      ],
+      [
+        "acc_mean_z",
+        0.022310877281363082
+      ],
+      [
+        "acc_mean",
+        0.018725420506593853
+      ],
+      [
+        "eda_std",
+        0.018435555500170633
+      ],
+      [
+        "temp_mean",
+        0.016107338494404377
+      ],
+      [
+        "eda_mean",
+        0.01458853205564122
+      ],
+      [
+        "eda_mean_z",
+        0.0076020106145289
+      ],
+      [
+        "rmssd_z",
+        0.004901995454335702
+      ],
+      [
+        "acc_std_z",
+        0.0026951567519862443
+      ],
+      [
+        "rmssd",
+        0.0026407882331814718
+      ],
+      [
+        "resp_rate_z",
+        0.0025520396469996534
+      ],
+      [
+        "resp_rate",
+        0.0011164416259127874
+      ],
+      [
+        "eda_slope_z",
+        0.0008215657454688649
+      ],
+      [
+        "sdnn",
+        0.0007273277775661126
+      ],
+      [
+        "sdnn_z",
+        0.0007148653979706722
+      ],
+      [
+        "temp_slope_z",
+        0.000268562533503759
+      ],
+      [
+        "temp_slope",
+        0.00017515019759539973
+      ]
+    ]
+  }
+}

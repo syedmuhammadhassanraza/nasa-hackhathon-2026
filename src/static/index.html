@@ -1,0 +1,2456 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NASA Astronaut Health CDSS & Planetary Bio-Simulation</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Three.js CDN for 3D Mars and radiation visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            space: {
+              950: '#03060f',
+              900: '#060a17',
+              850: '#0b1226',
+              800: '#101a36',
+              700: '#18264d',
+              600: '#23366a',
+            },
+            nasa: {
+              blue: '#0b3d91',
+              red: '#fc3d21',
+              cyan: '#00e5ff',
+              emerald: '#00e676',
+              amber: '#ffab00',
+              mars: '#ff5722',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #03060f; color: #e2e8f0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .glass-card {
+      background: rgba(11, 18, 38, 0.78);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+    }
+    .active-tab {
+      background: rgba(0, 229, 255, 0.12);
+      color: #00e5ff;
+      border-bottom: 2px solid #00e5ff;
+    }
+    .pulse-dot { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(1.15); } }
+    input[type=range] { accent-color: #00e5ff; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- TOP HEADER -->
+  <header class="glass-card border-b border-slate-800 px-6 py-3.5 sticky top-0 z-50 flex items-center justify-between">
+    <div class="flex items-center space-x-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-full bg-nasa-blue flex items-center justify-center font-black text-white text-xs tracking-widest border border-cyan-400 shadow-lg shadow-cyan-500/20">
+          NASA
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base font-bold tracking-wider text-white font-mono uppercase">
+              Astronaut Health CDSS
+            </h1>
+            <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono font-bold">
+              RESEARCH PROTOTYPE CONSOLE
+            </span>
+          </div>
+          <p class="text-xs text-slate-400">Historical Inspiration4 biomarkers · WESAD replay · mission-environment scenarios</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- These selectors apply to historical crew data and replay only. -->
+    <div id="crewDataSelectors" class="flex items-center space-x-3">
+      <span class="hidden xl:inline text-[10px] text-slate-500 font-mono">CREW DATA / REPLAY ONLY</span>
+      <div class="flex items-center space-x-2 bg-space-900/90 px-3 py-1.5 rounded-lg border border-slate-800">
+        <span class="text-xs text-slate-400 font-mono">ASTRONAUT:</span>
+        <select id="globalAstronautSelect" onchange="onGlobalCrewChange()" class="bg-transparent text-sm text-cyan-300 font-mono font-semibold focus:outline-none">
+          <option value="C001">C001 - Jared Isaacman (Commander)</option>
+          <option value="C002">C002 - Sian Proctor (Mission Pilot)</option>
+          <option value="C003">C003 - Hayley Arceneaux (Medical Officer)</option>
+          <option value="C004">C004 - Christopher Sembroski (Mission Specialist)</option>
+        </select>
+      </div>
+
+      <div class="flex items-center space-x-2 bg-space-900/90 px-3 py-1.5 rounded-lg border border-slate-800">
+        <span class="text-xs text-slate-400 font-mono">MISSION TIMEPOINT:</span>
+        <select id="globalTimepointSelect" onchange="onGlobalTimepointChange()" class="bg-transparent text-sm text-slate-200 font-mono focus:outline-none">
+          <option value="L-92">L-92 (Pre-Flight Baseline -92d)</option>
+          <option value="L-44">L-44 (Pre-Flight Baseline -44d)</option>
+          <option value="L-3">L-3 (Launch Minus 3d)</option>
+          <option value="R+1" selected>R+1 (Post-Flight Re-Entry +1d)</option>
+          <option value="R+45">R+45 (Medium Recovery +45d)</option>
+          <option value="R+82">R+82 (Late Recovery +82d)</option>
+          <option value="R+194">R+194 (Long-Term Homeostasis +194d)</option>
+        </select>
+      </div>
+
+      <div class="hidden sm:flex items-center space-x-2 pl-2 border-l border-slate-800">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 pulse-dot"></span>
+        <span class="text-xs font-mono text-emerald-400 font-semibold tracking-wider">SQLITE ACTIVE</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- NAVIGATION TABS -->
+  <nav class="bg-space-900 border-b border-slate-800 px-6 flex items-center space-x-1 overflow-x-auto text-xs font-mono">
+    <button onclick="switchTab('hud')" id="tabBtn-hud" class="px-4 py-3 active-tab hover:text-cyan-300 transition flex items-center gap-1.5 whitespace-nowrap">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+      MISSION CONTROL HUD
+    </button>
+    <button onclick="switchTab('cv')" id="tabBtn-cv" class="px-4 py-3 text-slate-400 hover:text-cyan-300 transition flex items-center gap-1.5 whitespace-nowrap">
+      <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+      CAMERA PULSE DEMO (EXPERIMENTAL)
+    </button>
+    <button onclick="switchTab('gravity')" id="tabBtn-gravity" class="px-4 py-3 text-slate-400 hover:text-cyan-300 transition flex items-center gap-1.5 whitespace-nowrap">
+      <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+      GRAVITY & ENVIRONMENT SIMULATOR
+    </button>
+    <button onclick="switchTab('mars')" id="tabBtn-mars" class="px-4 py-3 text-slate-400 hover:text-cyan-300 transition flex items-center gap-1.5 whitespace-nowrap">
+      <svg class="w-4 h-4 text-nasa-mars" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"></path></svg>
+      NASA MARS 3D EXPEDITION CENTER
+    </button>
+    <button onclick="switchTab('biomarkers')" id="tabBtn-biomarkers" class="px-4 py-3 text-slate-400 hover:text-cyan-300 transition flex items-center gap-1.5 whitespace-nowrap">
+      <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>
+      921-ANALYTE EXPLORER (OSD-575)
+    </button>
+  </nav>
+
+  <!-- USER ONBOARDING & EXPLANATION BANNER -->
+  <div class="bg-space-850/90 border-b border-slate-800 px-6 py-2.5 flex items-center justify-between text-xs text-slate-300">
+    <div class="flex items-center space-x-2 font-mono">
+      <span class="text-cyan-400 font-bold">ℹ️ SYSTEM GUIDE:</span>
+      <span><b>Research prototype — not for clinical or flight decisions.</b> Telemetry is WESAD replay/simulation; blood biomarkers are historical data from four Inspiration4 crew members. Sensor hardware and clinical validation are not connected.</span>
+    </div>
+    <div class="flex items-center space-x-3 text-slate-400 font-mono text-[11px]">
+      <span>DATA: REPLAY / DEMO</span>
+      <span>•</span>
+      <span>NOT A MEDICAL DEVICE</span>
+      <span>•</span>
+      <span>Database: SQLite Persistent</span>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT CONTAINER -->
+  <main class="flex-1 p-6 max-w-7xl mx-auto w-full space-y-6">
+
+    <!-- ============================================================== -->
+    <!-- TAB 1: MISSION CONTROL HUD & MULTIMODAL TELEMETRY              -->
+    <!-- ============================================================== -->
+    <div id="tabContent-hud" class="space-y-6">
+
+      <!-- TOP METRIC CARDS -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <!-- AHRI Score -->
+        <div class="glass-card rounded-xl p-5 flex flex-col justify-between">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono text-slate-400 tracking-wider">MODEL SCORE (DEMO)</span>
+            <span id="hudTriageBadge" class="text-xs px-2 py-0.5 rounded font-bold font-mono bg-emerald-950 text-emerald-400 border border-emerald-800">
+              🟢 NOMINAL
+            </span>
+          </div>
+          <div class="my-3 flex items-baseline justify-between">
+            <div class="text-4xl font-extrabold text-white font-mono" id="hudAhriScore">93.2</div>
+            <span class="text-xs text-slate-400 font-mono">AHRI / 100</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+            <div id="hudAhriBar" class="bg-gradient-to-r from-emerald-500 to-cyan-400 h-2 rounded-full transition-all duration-500" style="width: 93.2%"></div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2 font-mono">WESAD replay + historical biomarker inputs</p>
+        </div>
+
+        <!-- Acute Stress -->
+        <div class="glass-card rounded-xl p-5 flex flex-col justify-between">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono text-slate-400 tracking-wider">ACUTE STRESS PROB.</span>
+            <span id="hudStateBadge" class="text-xs px-2 py-0.5 rounded font-bold font-mono bg-slate-800 text-cyan-300">
+              BASELINE
+            </span>
+          </div>
+          <div class="my-3 flex items-baseline justify-between">
+            <div class="text-4xl font-extrabold text-cyan-400 font-mono" id="hudStressProb">0.0%</div>
+            <span class="text-xs text-slate-400 font-mono">P(STRESS)</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+            <div id="hudStressBar" class="bg-cyan-400 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2 font-mono">Gradient Boosting 5-Fold Group-CV: 0.940</p>
+        </div>
+
+        <!-- Anomaly Severity -->
+        <div class="glass-card rounded-xl p-5 flex flex-col justify-between">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono text-slate-400 tracking-wider">BIOMETRIC ANOMALY</span>
+            <span id="hudAnomalyBadge" class="text-xs px-2 py-0.5 rounded font-bold font-mono bg-emerald-950 text-emerald-400">
+              CLEAR
+            </span>
+          </div>
+          <div class="my-3 flex items-baseline justify-between">
+            <div class="text-4xl font-extrabold text-slate-200 font-mono" id="hudAnomalyScore">0.0%</div>
+            <span class="text-xs text-slate-400 font-mono">SEVERITY</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+            <div id="hudAnomalyBar" class="bg-emerald-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2 font-mono">Unsupervised Isolation Forest Detector</p>
+        </div>
+
+        <!-- Organ Vulnerability -->
+        <div class="glass-card rounded-xl p-5 flex flex-col justify-between">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono text-slate-400 tracking-wider">ORGAN BIOMARKER STRAIN</span>
+            <span id="hudOrganBadge" class="text-xs px-2 py-0.5 rounded font-bold font-mono bg-blue-950 text-blue-300">
+              LOW DRIFT
+            </span>
+          </div>
+          <div class="my-3 flex items-baseline justify-between">
+            <div class="text-4xl font-extrabold text-slate-200 font-mono" id="hudOrganRisk">22.5</div>
+            <span class="text-xs text-slate-400 font-mono">RISK / 100</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+            <div id="hudOrganBar" class="bg-blue-400 h-2 rounded-full transition-all duration-500" style="width: 22.5%"></div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2 font-mono">OSD-575 Serum CMP & Cytokine Panel</p>
+        </div>
+      </div>
+
+      <!-- ROW 2: LIVE BIOMETRIC HUD & CHART -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left: Live Telemetry Gauges -->
+        <div class="glass-card rounded-xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <h2 class="text-xs font-bold font-mono text-slate-300 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+              SIMULATED TELEMETRY METRICS
+            </h2>
+            <span class="text-xs font-mono text-slate-400" id="hudWindowLabel">Window: 60s</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-space-900/80 p-3 rounded-lg border border-slate-800">
+              <span class="text-[11px] text-slate-400 font-mono">HEART RATE</span>
+              <div class="flex items-baseline justify-between mt-1">
+                <span class="text-2xl font-bold font-mono text-white" id="hudValHR">72.0</span>
+                <span class="text-xs text-slate-400 font-mono">bpm</span>
+              </div>
+              <span class="text-[10px] text-emerald-400 font-mono">Resting: 50-100</span>
+            </div>
+
+            <div class="bg-space-900/80 p-3 rounded-lg border border-slate-800">
+              <span class="text-[11px] text-slate-400 font-mono">HRV (RMSSD)</span>
+              <div class="flex items-baseline justify-between mt-1">
+                <span class="text-2xl font-bold font-mono text-cyan-300" id="hudValRMSSD">45.0</span>
+                <span class="text-xs text-slate-400 font-mono">ms</span>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono">Vagal tone index</span>
+            </div>
+
+            <div class="bg-space-900/80 p-3 rounded-lg border border-slate-800">
+              <span class="text-[11px] text-slate-400 font-mono">RESPIRATION</span>
+              <div class="flex items-baseline justify-between mt-1">
+                <span class="text-2xl font-bold font-mono text-slate-200" id="hudValResp">15.0</span>
+                <span class="text-xs text-slate-400 font-mono">br/min</span>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono">Chest sensor (700Hz)</span>
+            </div>
+
+            <div class="bg-space-900/80 p-3 rounded-lg border border-slate-800">
+              <span class="text-[11px] text-slate-400 font-mono">EDA (SKIN COND.)</span>
+              <div class="flex items-baseline justify-between mt-1">
+                <span class="text-2xl font-bold font-mono text-amber-300" id="hudValEDA">1.200</span>
+                <span class="text-xs text-slate-400 font-mono">μS</span>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono">Sympathetic arousal</span>
+            </div>
+
+            <div class="bg-space-900/80 p-3 rounded-lg border border-slate-800">
+              <span class="text-[11px] text-slate-400 font-mono">SKIN TEMP</span>
+              <div class="flex items-baseline justify-between mt-1">
+                <span class="text-2xl font-bold font-mono text-slate-200" id="hudValTemp">33.80</span>
+                <span class="text-xs text-slate-400 font-mono">°C</span>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono">Core thermal tracking</span>
+            </div>
+
+            <div class="bg-space-900/80 p-3 rounded-lg border border-slate-800">
+              <span class="text-[11px] text-slate-400 font-mono">ACCELEROMETER</span>
+              <div class="flex items-baseline justify-between mt-1">
+                <span class="text-2xl font-bold font-mono text-slate-200" id="hudValAcc">0.92</span>
+                <span class="text-xs text-slate-400 font-mono">g</span>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono">Motion variance</span>
+            </div>
+          </div>
+
+          <!-- Scenario Injector -->
+          <div class="pt-3 border-t border-slate-800 space-y-2">
+            <span class="text-xs font-mono text-slate-400 font-bold block">FLIGHT SCENARIO INJECTION:</span>
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="injectScenario('nominal')" class="px-2.5 py-1.5 text-xs font-mono rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800 hover:bg-emerald-900 transition text-left">
+                🟢 Nominal Orbit
+              </button>
+              <button onclick="injectScenario('eva')" class="px-2.5 py-1.5 text-xs font-mono rounded bg-cyan-950/80 text-cyan-400 border border-cyan-800 hover:bg-cyan-900 transition text-left">
+                🔵 Spacewalk (EVA)
+              </button>
+              <button onclick="injectScenario('stress')" class="px-2.5 py-1.5 text-xs font-mono rounded bg-amber-950/80 text-amber-400 border border-amber-800 hover:bg-amber-900 transition text-left">
+                🟡 Cognitive Crisis
+              </button>
+              <button onclick="injectScenario('anomaly')" class="px-2.5 py-1.5 text-xs font-mono rounded bg-red-950/80 text-red-400 border border-red-800 hover:bg-red-900 transition text-left">
+                🔴 Hypoxia / Anomaly
+              </button>
+            </div>
+
+            <div class="flex items-center justify-between pt-2">
+              <button id="hudStreamBtn" onclick="toggleHudStream()" class="px-3 py-1.5 text-xs font-mono rounded bg-cyan-600 text-white font-bold hover:bg-cyan-500 transition">
+                PAUSE STREAM
+              </button>
+              <button onclick="stepHudStream()" class="px-3 py-1.5 text-xs font-mono rounded bg-space-850 text-slate-300 border border-slate-700 hover:bg-space-800 transition">
+                STEP NEXT &gt;
+              </button>
+              <select id="hudSubjectSelect" onchange="onHudSubjectChange()" class="bg-space-900 border border-slate-700 text-xs rounded px-2 py-1 text-slate-300 font-mono">
+                <option value="S10">Subject S10</option>
+                <option value="S2">Subject S2</option>
+                <option value="S3">Subject S3</option>
+                <option value="S4">Subject S4</option>
+                <option value="S13">Subject S13</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Rolling Live Telemetry Chart -->
+        <div class="glass-card rounded-xl p-5 lg:col-span-2 flex flex-col justify-between">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <div>
+              <h2 class="text-xs font-bold font-mono text-slate-200 uppercase tracking-wider">Continuous Physiological Rolling Telemetry</h2>
+              <p class="text-[11px] text-slate-400">Heart Rate (bpm), Respiration Rate (br/min), and Galvanic Skin Response (x10 μS)</p>
+            </div>
+            <div class="flex items-center space-x-3 text-xs font-mono">
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span> HR</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span> Resp</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> EDA</span>
+            </div>
+          </div>
+
+          <div class="relative w-full h-72 my-2">
+            <canvas id="hudLiveChart"></canvas>
+          </div>
+
+          <div class="pt-2 border-t border-slate-800 flex items-center justify-between text-xs font-mono">
+            <span class="text-slate-400">STATE PROBABILITIES:</span>
+            <div class="flex space-x-4">
+              <span class="text-slate-300">Baseline: <b id="hudProbBase" class="text-cyan-400">92%</b></span>
+              <span class="text-slate-300">Meditation: <b id="hudProbMed" class="text-emerald-400">5%</b></span>
+              <span class="text-slate-300">Stress: <b id="hudProbStress" class="text-red-400">2%</b></span>
+              <span class="text-slate-300">Amusement: <b id="hudProbAmuse" class="text-amber-400">1%</b></span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ROW 3: ORGAN SYSTEM HEALTH MATRIX -->
+      <div class="glass-card rounded-xl p-5 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div>
+            <h2 class="text-xs font-bold font-mono text-slate-200 tracking-wider uppercase">
+              Inspiration4 Organ Biomarker Matrix (NASA OSD-575)
+            </h2>
+            <p class="text-[11px] text-slate-400">Pre-flight vs post-flight landing shock & multi-panel recovery kinetics</p>
+          </div>
+          <span class="text-xs font-mono text-cyan-400" id="hudMatrixPhaseLabel">ACTIVE: R+1</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="hudOrganGrid">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- ROW 4: MODEL-GENERATED REVIEW FLAGS -->
+      <div class="glass-card rounded-xl p-5 space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <h2 class="text-xs font-bold font-mono text-slate-200 tracking-wider uppercase flex items-center gap-2">
+            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            Model-Generated Review Flags (Demo Only)
+          </h2>
+          <button onclick="exportClinicalReport()" class="px-3 py-1 text-xs font-mono rounded bg-space-850 border border-slate-700 text-slate-300 hover:bg-space-800 transition">
+            Export Demo Summary (JSON)
+          </button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3" id="hudProtocolsContainer">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+    </div>
+
+
+    <!-- ============================================================== -->
+    <!-- TAB 2: PERSONAL COMPUTER VISION VITAL SCANNER (rPPG)           -->
+    <!-- ============================================================== -->
+    <div id="tabContent-cv" class="hidden space-y-6">
+      <div class="glass-card rounded-xl p-6 space-y-6">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div>
+            <h2 class="text-sm font-bold font-mono text-white flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-slate-500" id="cvStatusDot"></span>
+              CAMERA PULSE ESTIMATE (EXPERIMENTAL rPPG)
+            </h2>
+            <p class="text-xs text-slate-400">
+              Local-user demo, independent of the selected crew and mission timepoint. Video stays in this browser; only forehead-region RGB averages go to the local server. Not clinically validated.
+            </p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button id="cvModeWebcamBtn" onclick="setCVMode('webcam')" class="px-3 py-1.5 text-xs font-mono rounded bg-cyan-600 text-white font-bold transition">
+              START CAMERA
+            </button>
+            <button id="cvModeSimBtn" onclick="setCVMode('sim')" class="px-3 py-1.5 text-xs font-mono rounded bg-space-850 text-slate-300 border border-slate-700 transition">
+              SIMULATED FEED
+            </button>
+            <button id="cvSaveButton" onclick="saveCurrentCvScan()" disabled class="px-3 py-1.5 text-xs font-mono rounded bg-slate-700 text-slate-400 font-bold cursor-not-allowed transition">
+              SAVE SCAN TO DATABASE
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          <!-- Left 2 Cols: Video / Canvas Viewport -->
+          <div class="lg:col-span-2 bg-black rounded-xl border border-slate-800 relative overflow-hidden flex flex-col items-center justify-center min-h-[380px]">
+            <video id="webcamVideo" autoplay playsinline muted class="hidden"></video>
+            <canvas id="cvCanvas" width="640" height="380" class="w-full h-full object-contain"></canvas>
+
+            <!-- Status HUD Overlay -->
+            <div class="absolute top-4 left-4 bg-space-950/80 border border-slate-800 px-3 py-1.5 rounded-lg text-xs font-mono">
+              <span class="text-slate-400">INPUT STATUS:</span> <span id="cvTrackerStatus" class="text-amber-300 font-bold">CAMERA OFF — START CAMERA</span>
+            </div>
+
+            <div class="absolute top-4 right-4 bg-space-950/80 border border-slate-800 px-3 py-1.5 rounded-lg text-xs font-mono">
+              <span class="text-slate-400">SIGNAL QUALITY:</span> <span id="cvSnrValue" class="text-slate-400 font-bold">--</span>
+            </div>
+
+            <!-- Optical Pulse Wave Canvas -->
+            <div class="absolute bottom-3 left-4 right-4 bg-space-950/85 border border-slate-800/80 rounded-lg p-2.5">
+              <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 mb-1">
+                <span>ROI GREEN-CHANNEL SIGNAL (NOT A DIAGNOSTIC WAVEFORM)</span>
+                <span class="text-slate-400" id="cvSourceLabel">SOURCE: NONE</span>
+              </div>
+              <div class="h-14 w-full">
+                <canvas id="pulseCanvas" width="600" height="56" class="w-full h-full"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Col: Vital Readouts -->
+          <div class="space-y-4 flex flex-col justify-between">
+            <div class="bg-space-900/90 p-4 rounded-xl border border-slate-800 space-y-3">
+              <span class="text-xs font-mono text-slate-400 font-bold block border-b border-slate-800 pb-2">
+                EXPERIMENTAL ESTIMATES
+              </span>
+
+              <div class="flex items-baseline justify-between bg-space-850 p-3 rounded-lg border border-slate-800">
+                <div>
+                  <span class="text-[11px] text-slate-400 font-mono block">PULSE RATE</span>
+                  <span class="text-3xl font-extrabold text-white font-mono" id="cvHeartRate">--</span>
+                </div>
+                <span class="text-xs text-cyan-400 font-mono">BPM</span>
+              </div>
+
+              <div class="flex items-baseline justify-between bg-space-850 p-3 rounded-lg border border-slate-800">
+                <div>
+                  <span class="text-[11px] text-slate-400 font-mono block">HRV</span>
+                  <span class="text-2xl font-bold text-cyan-300 font-mono">NOT MEASURED</span>
+                </div>
+                <span class="text-xs text-slate-400 font-mono">USE A VALIDATED SENSOR</span>
+              </div>
+
+              <div class="flex items-baseline justify-between bg-space-850 p-3 rounded-lg border border-slate-800">
+                <div>
+                  <span class="text-[11px] text-slate-400 font-mono block">RESPIRATION</span>
+                  <span class="text-2xl font-bold text-slate-200 font-mono">NOT MEASURED</span>
+                </div>
+                <span class="text-xs text-slate-400 font-mono">USE A VALIDATED SENSOR</span>
+              </div>
+
+              <div class="flex items-baseline justify-between bg-space-850 p-3 rounded-lg border border-slate-800">
+                <div>
+                  <span class="text-[11px] text-slate-400 font-mono block">ESTIMATE CONFIDENCE</span>
+                  <span class="text-2xl font-bold text-slate-300 font-mono" id="cvConfidence">--</span>
+                </div>
+                <span class="text-xs text-slate-400 font-mono">SIGNAL-ONLY</span>
+              </div>
+            </div>
+
+            <!-- Clinical Assessment -->
+            <div class="bg-space-900/90 p-4 rounded-xl border border-slate-800 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-mono text-slate-400 font-bold">MODEL OUTPUT STATUS:</span>
+                <span id="cvTriageStatus" class="text-xs px-2 py-0.5 rounded font-bold font-mono bg-slate-800 text-slate-300 border border-slate-700">
+                  NOT ASSESSED
+                </span>
+              </div>
+              <p class="text-xs text-slate-300 font-sans" id="cvClinicalNotice">
+                Camera-based pulse estimates are experimental and can be inaccurate. They are not used to diagnose or clear a crew member.
+              </p>
+            </div>
+            <div class="bg-space-900/90 p-4 rounded-xl border border-slate-800 space-y-1">
+              <span class="text-xs font-mono text-slate-400 font-bold">REFERENCE CONTEXT — ADULT RESTING PULSE</span>
+              <p class="text-xs text-slate-300">Broad reference commonly used for adults at rest: 60–100 BPM. This camera estimate cannot determine whether a reading is dangerous; activity, individual baseline, signal quality, and medical context matter.</p>
+              <p id="cvReferenceStatus" class="text-xs font-mono text-slate-400">No estimate available.</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ============================================================== -->
+    <!-- ACO is retained as a research artifact, not an operations view. -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- TAB 4: GRAVITY & SPACE ENVIRONMENT SIMULATOR                   -->
+    <!-- ============================================================== -->
+    <div id="tabContent-gravity" class="hidden space-y-6">
+      <div class="glass-card rounded-xl p-6 space-y-6">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div>
+            <h2 class="text-sm font-bold font-mono text-white flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-cyan-400 pulse-dot"></span>
+              PLANETARY GRAVITATIONAL & SPACE ENVIRONMENT SIMULATOR
+            </h2>
+            <p class="text-xs text-slate-400">
+              Model acute & chronic physiological adaptation across Earth, Spaceship Freefall, Lunar Artemis Base, and Martian Habitats.
+            </p>
+          </div>
+
+          <!-- Quick Presets -->
+          <div class="flex items-center space-x-2">
+            <button onclick="applyEnvPreset('earth')" class="px-2.5 py-1 text-xs font-mono rounded bg-space-850 hover:bg-space-800 text-slate-200 border border-slate-700">
+              🌍 Earth (1.0G)
+            </button>
+            <button onclick="applyEnvPreset('spaceship')" class="px-2.5 py-1 text-xs font-mono rounded bg-space-850 hover:bg-space-800 text-cyan-300 border border-cyan-800">
+              🛰️ Zero-G Transit
+            </button>
+            <button onclick="applyEnvPreset('moon')" class="px-2.5 py-1 text-xs font-mono rounded bg-space-850 hover:bg-space-800 text-slate-300 border border-slate-700">
+              🌑 Moon (0.17G)
+            </button>
+            <button onclick="applyEnvPreset('mars')" class="px-2.5 py-1 text-xs font-mono rounded bg-space-850 hover:bg-space-800 text-nasa-mars border border-red-800">
+              🔴 Mars (0.38G)
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          <!-- Left Column: Interactive Parameter Sliders -->
+          <div class="bg-space-900/90 p-5 rounded-xl border border-slate-800 space-y-5">
+            <span class="text-xs font-mono text-slate-400 font-bold block border-b border-slate-800 pb-2">
+              PHYSICAL PARAMETERS
+            </span>
+
+            <!-- Gravity Slider -->
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs font-mono">
+                <span class="text-slate-300">GRAVITY (G)</span>
+                <span class="text-cyan-400 font-bold" id="sliderValGravity">0.00 G</span>
+              </div>
+              <input type="range" id="sliderGravity" min="0.0" max="2.0" step="0.01" value="0.00" oninput="onEnvSliderChange()" class="w-full">
+              <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                <span>0.0G (Freefall)</span>
+                <span>0.17G (Moon)</span>
+                <span>0.38G (Mars)</span>
+                <span>1.0G (Earth)</span>
+              </div>
+            </div>
+
+            <!-- Cabin Pressure Slider -->
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs font-mono">
+                <span class="text-slate-300">CABIN PRESSURE</span>
+                <span class="text-cyan-400 font-bold" id="sliderValPressure">101.3 kPa</span>
+              </div>
+              <input type="range" id="sliderPressure" min="40.0" max="120.0" step="0.5" value="101.3" oninput="onEnvSliderChange()" class="w-full">
+              <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                <span>56 kPa (Exploration Hab)</span>
+                <span>101.3 kPa (Sea Level)</span>
+              </div>
+            </div>
+
+            <!-- Fractional O2 Slider -->
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs font-mono">
+                <span class="text-slate-300">OXYGEN FRACTION (FiO2)</span>
+                <span class="text-cyan-400 font-bold" id="sliderValO2">21.0%</span>
+              </div>
+              <input type="range" id="sliderO2" min="15.0" max="40.0" step="0.5" value="21.0" oninput="onEnvSliderChange()" class="w-full">
+            </div>
+
+            <!-- Cabin CO2 Slider -->
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs font-mono">
+                <span class="text-slate-300">CABIN CO2 LEVEL</span>
+                <span class="text-cyan-400 font-bold" id="sliderValCO2">0.40%</span>
+              </div>
+              <input type="range" id="sliderCO2" min="0.04" max="1.5" step="0.02" value="0.40" oninput="onEnvSliderChange()" class="w-full">
+            </div>
+
+            <!-- Radiation Rate Slider -->
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs font-mono">
+                <span class="text-slate-300">RADIATION EXPOSURE</span>
+                <span class="text-cyan-400 font-bold" id="sliderValRadiation">25.0 μSv/h</span>
+              </div>
+              <input type="range" id="sliderRadiation" min="0.3" max="80.0" step="0.5" value="25.0" oninput="onEnvSliderChange()" class="w-full">
+            </div>
+
+            <!-- Mission Duration Slider -->
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs font-mono">
+                <span class="text-slate-300">MISSION DURATION</span>
+                <span class="text-cyan-400 font-bold" id="sliderValDays">180 days</span>
+              </div>
+              <input type="range" id="sliderDays" min="1" max="900" step="5" value="180" oninput="onEnvSliderChange()" class="w-full">
+            </div>
+          </div>
+
+          <!-- Right 2 Columns: Readouts -->
+          <div class="lg:col-span-2 space-y-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div class="bg-space-900 p-3.5 rounded-xl border border-slate-800">
+                <span class="text-[11px] text-slate-400 font-mono">FLUID SHIFT INDEX</span>
+                <div class="text-2xl font-bold font-mono text-cyan-400 my-1" id="resFluidShift">98.2%</div>
+                <span class="text-[10px] text-slate-500 font-mono">Cephalad venous migration</span>
+              </div>
+
+              <div class="bg-space-900 p-3.5 rounded-xl border border-slate-800">
+                <span class="text-[11px] text-slate-400 font-mono">SANS NEURO-OCULAR</span>
+                <div class="text-2xl font-bold font-mono text-amber-400 my-1" id="resSansRisk">71.5%</div>
+                <span class="text-[10px] text-slate-500 font-mono" id="resOnsdMm">ONSD: 6.28 mm</span>
+              </div>
+
+              <div class="bg-space-900 p-3.5 rounded-xl border border-slate-800">
+                <span class="text-[11px] text-slate-400 font-mono">BONE LOSS (BMD)</span>
+                <div class="text-2xl font-bold font-mono text-red-400 my-1" id="resBmdLoss">-7.5%</div>
+                <span class="text-[10px] text-slate-500 font-mono" id="resHypercalciuria">Stone Risk: High</span>
+              </div>
+
+              <div class="bg-space-900 p-3.5 rounded-xl border border-slate-800">
+                <span class="text-[11px] text-slate-400 font-mono">ALVEOLAR pO2</span>
+                <div class="text-2xl font-bold font-mono text-white my-1" id="resPo2">149.7</div>
+                <span class="text-[10px] text-emerald-400 font-mono" id="resHypoxiaStatus">NORMAL (mmHg)</span>
+              </div>
+
+              <div class="bg-space-900 p-3.5 rounded-xl border border-slate-800">
+                <span class="text-[11px] text-slate-400 font-mono">RADIATION DOSE</span>
+                <div class="text-2xl font-bold font-mono text-amber-300 my-1" id="resRadiationDose">108.0</div>
+                <span class="text-[10px] text-slate-500 font-mono" id="resPelConsumed">18.0% Career Limit</span>
+              </div>
+
+              <div class="bg-space-900 p-3.5 rounded-xl border border-slate-800">
+                <span class="text-[11px] text-slate-400 font-mono">ORTHOSTATIC RISK</span>
+                <div class="text-2xl font-bold font-mono text-slate-200 my-1" id="resOrthoRisk">82.0%</div>
+                <span class="text-[10px] text-slate-500 font-mono">Post-G syncope risk</span>
+              </div>
+            </div>
+
+            <div class="bg-space-900 p-4 rounded-xl border border-slate-800 space-y-2.5">
+              <span class="text-xs font-mono text-slate-300 font-bold block uppercase tracking-wider">
+                Scenario review notes — not treatment instructions:
+              </span>
+              <div class="space-y-2" id="envCountermeasuresList">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ============================================================== -->
+    <!-- TAB 5: NASA MARS 3D EXPEDITION CENTER                          -->
+    <!-- ============================================================== -->
+    <div id="tabContent-mars" class="hidden space-y-6">
+      <div class="glass-card rounded-xl p-6 space-y-6">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div>
+            <h2 class="text-sm font-bold font-mono text-white flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-nasa-mars pulse-dot"></span>
+              MARS MISSION-ENVIRONMENT PLANNING (ILLUSTRATIVE SIMULATION)
+            </h2>
+            <p class="text-xs text-slate-400">
+              Scenario planning for gravity and radiation shielding. These calculations are not astronaut sensor readings, individualized risk estimates, or clinical guidance.
+            </p>
+          </div>
+          <span class="text-xs font-mono text-nasa-mars font-bold px-2.5 py-1 rounded bg-red-950/80 border border-red-800">
+            JEZERO CRATER HABITAT
+          </span>
+        </div>
+
+        <!-- 3D VISUALIZATION TILES -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+          <!-- 3D Visualizer 1: Rotating Mars Globe -->
+          <div class="bg-space-900 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-xs font-bold font-mono text-white flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-nasa-mars"></span> 3D MARS PLANETARY SPHERE
+              </h3>
+              <span class="text-[10px] font-mono text-slate-400" id="marsGlobeStatus">3D VIEW STARTS WHEN OPENED</span>
+            </div>
+            <div class="relative w-full h-48 bg-space-950 rounded-lg overflow-hidden border border-slate-800/80" id="mars3dGlobeContainer">
+              <canvas id="marsGlobeCanvas" class="w-full h-full"></canvas>
+            </div>
+            <p class="text-[11px] text-slate-400 font-mono mt-2">
+              Rotating Mars globe with the Jezero Crater marker (illustrative, not navigation data).
+            </p>
+          </div>
+
+          <!-- 3D Visualizer 2: Cosmic Radiation Shielding Barrier -->
+          <div class="bg-space-900 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-xs font-bold font-mono text-white flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-amber-400"></span> 3D RADIATION PENETRATION SHOWER
+              </h3>
+              <span class="text-[10px] font-mono text-amber-300" id="marsShieldingLabel">Shield: 50 cm</span>
+            </div>
+            <div class="relative w-full h-48 bg-space-950 rounded-lg overflow-hidden border border-slate-800/80">
+              <canvas id="radiation3dCanvas" class="w-full h-full"></canvas>
+            </div>
+            <p class="text-[11px] text-slate-400 font-mono mt-2" id="marsRadAttenuationText">
+              Illustrative particle paths; attenuation uses a simplified exponential model and is not mission dosimetry.
+            </p>
+          </div>
+
+          <!-- 3D Visualizer 3: Gravitational Column (0.38G vs 1G) -->
+          <div class="bg-space-900 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-xs font-bold font-mono text-white flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-cyan-400"></span> GRAVITY & SPINE-LOAD ILLUSTRATION
+              </h3>
+              <span class="text-[10px] font-mono text-cyan-300" id="marsGravityLabel">G: 0.38</span>
+            </div>
+            <div class="relative w-full h-48 bg-space-950 rounded-lg overflow-hidden border border-slate-800/80">
+              <canvas id="gravity3dCanvas" class="w-full h-full"></canvas>
+            </div>
+            <p class="text-[11px] text-slate-400 font-mono mt-2">
+              Conceptual gravity illustration only; it does not predict spinal injury or individual physiology.
+            </p>
+          </div>
+
+        </div>
+
+        <div class="bg-space-900 p-5 rounded-xl border border-slate-800 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+            <div>
+              <h3 class="text-xs font-bold font-mono text-white uppercase tracking-wider">3D Human Scenario Impact</h3>
+              <p class="text-[11px] text-slate-400 mt-1">Color shows relative model indices from the selected environment scenario—not measured injury or a survival prediction.</p>
+            </div>
+            <span class="text-[10px] font-mono text-amber-300">NOT A CLINICAL RISK OR SURVIVAL ASSESSMENT</span>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div id="humanImpactContainer" class="relative h-80 bg-space-950 rounded-lg border border-slate-800 overflow-hidden">
+              <canvas id="humanImpactCanvas" class="w-full h-full"></canvas>
+              <div class="absolute bottom-2 left-2 right-2 text-center text-[10px] text-slate-400 font-mono">Illustrative regions: head / SANS · torso / fluid shift · bones / modeled loss · limbs / radiation · shell / oxygen scenario</div>
+            </div>
+            <div class="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3" id="humanImpactReadouts">
+              <div class="bg-space-850 rounded-lg border border-slate-800 p-3 text-xs text-slate-400">Waiting for Mars scenario calculation…</div>
+            </div>
+          </div>
+          <p class="text-[10px] text-slate-500">The “lower / elevated / higher” labels are illustrative display bands only. They are not validated danger thresholds. Human survival cannot be inferred from these scenario calculations.</p>
+        </div>
+
+        <!-- Mars Interactive Parameter Toggles -->
+        <div class="bg-space-900/90 p-5 rounded-xl border border-slate-800 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <h3 class="text-xs font-bold font-mono text-white uppercase tracking-wider">
+              Mission-Planning Environment Inputs (Not Crew Sensor Readings)
+            </h3>
+            <span class="text-xs font-mono text-cyan-400">Scenario model — not measured physiology</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs font-mono">
+                <span class="text-slate-300">REGOLITH SHIELDING</span>
+                <span class="text-amber-400 font-bold" id="marsValShield">50 cm</span>
+              </div>
+              <input type="range" id="marsSliderShield" min="0" max="250" step="5" value="50" oninput="onMarsParamChange()" class="w-full">
+              <span class="text-[10px] text-slate-500 font-mono block">Water-wall / regolith thickness</span>
+            </div>
+
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs font-mono">
+                <span class="text-slate-300">SURFACE GRAVITY</span>
+                <span class="text-nasa-mars font-bold" id="marsValGrav">0.38 G</span>
+              </div>
+              <input type="range" id="marsSliderGrav" min="0.1" max="1.0" step="0.01" value="0.38" oninput="onMarsParamChange()" class="w-full">
+              <span class="text-[10px] text-slate-500 font-mono block">0.38G (Mars surface)</span>
+            </div>
+
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs font-mono">
+                <span class="text-slate-300">HABITAT PRESSURE</span>
+                <span class="text-cyan-400 font-bold" id="marsValPressure">56.0 kPa</span>
+              </div>
+              <input type="range" id="marsSliderPressure" min="30" max="101.3" step="1" value="56.0" oninput="onMarsParamChange()" class="w-full">
+              <span class="text-[10px] text-slate-500 font-mono block">Exploration atmosphere (8.2 psi)</span>
+            </div>
+
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs font-mono">
+                <span class="text-slate-300">EXPEDITION DAYS</span>
+                <span class="text-white font-bold" id="marsValDays">500 days</span>
+              </div>
+              <input type="range" id="marsSliderDays" min="30" max="900" step="10" value="500" oninput="onMarsParamChange()" class="w-full">
+              <span class="text-[10px] text-slate-500 font-mono block">500d Mars surface mission</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mars Health Challenges & Engineering Countermeasures -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="bg-space-900 p-5 rounded-xl border border-slate-800 space-y-3">
+            <h3 class="text-xs font-bold font-mono text-red-400 uppercase tracking-wider flex items-center gap-1.5">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+              Environmental factors to account for
+            </h3>
+            <ul class="space-y-2.5 text-xs text-slate-300 font-sans">
+              <li class="bg-space-850 p-2.5 rounded border border-slate-800">
+                <b class="text-white block font-mono">1. Space radiation:</b>
+                Crew dose depends on solar activity, trajectory, habitat geometry, and shielding materials; this simplified slider is not a personal dose estimate.
+              </li>
+              <li class="bg-space-850 p-2.5 rounded border border-slate-800">
+                <b class="text-white block font-mono">2. Partial gravity:</b>
+                Long-duration human adaptation to Martian gravity is not established; monitor multiple systems using validated mission protocols.
+              </li>
+              <li class="bg-space-850 p-2.5 rounded border border-slate-800">
+                <b class="text-white block font-mono">3. Regolith and dust:</b>
+                Dust control and exposure monitoring are mission-design concerns; this dashboard does not estimate an individual's exposure.
+              </li>
+            </ul>
+          </div>
+
+          <div class="bg-space-900 p-5 rounded-xl border border-slate-800 space-y-3">
+            <h3 class="text-xs font-bold font-mono text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+              Planning priorities (not treatment instructions)
+            </h3>
+            <ul class="space-y-2.5 text-xs text-slate-300 font-sans">
+              <li class="bg-space-850 p-2.5 rounded border border-slate-800">
+                <b class="text-white block font-mono">1. Radiation protection:</b>
+                Evaluate shielding and solar-particle-event shelter plans with radiation specialists using validated transport and mission models.
+              </li>
+              <li class="bg-space-850 p-2.5 rounded border border-slate-800">
+                <b class="text-white block font-mono">2. Environmental controls:</b>
+                Plan dust containment, air-quality sensing, and life-support monitoring with the mission engineering and medical teams.
+              </li>
+              <li class="bg-space-850 p-2.5 rounded border border-slate-800">
+                <b class="text-white block font-mono">3. Crew health monitoring:</b>
+                Use validated wearable and clinical measurements with flight-surgeon oversight; this prototype cannot prescribe countermeasures.
+              </li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- ============================================================== -->
+    <!-- TAB 6: 921-ANALYTE EXPLORER (NASA OSD-575)                     -->
+    <!-- ============================================================== -->
+    <div id="tabContent-biomarkers" class="hidden space-y-6">
+      <div class="glass-card rounded-xl p-6 space-y-6">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div>
+            <h2 class="text-sm font-bold font-mono text-white flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-indigo-400 pulse-dot"></span>
+              NASA OSD-575 INSPIRATION4 921-ANALYTE LONGITUDINAL TRAJECTORY EXPLORER
+            </h2>
+            <p class="text-xs text-slate-400">
+              Query any biomarker from the Comprehensive Metabolic Panel, Eve Technologies Cytokines, or Alamar Proteomics across all mission phases.
+            </p>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <label class="text-xs text-slate-400 font-mono">SELECT BIOMARKER:</label>
+            <select id="bioAnalyteSelect" onchange="updateBioAnalyteChart()" class="bg-space-850 border border-slate-700 text-xs rounded px-3 py-1.5 text-cyan-300 font-mono">
+              <optgroup label="Renal & Fluid Dynamics">
+                <option value="CREATININE">Creatinine (Kidney / G-force)</option>
+                <option value="UREA NITROGEN (BUN)">BUN (Hydration / Renal)</option>
+                <option value="SODIUM">Sodium (Fluid Homeostasis)</option>
+                <option value="POTASSIUM">Potassium (Electrolyte Balance)</option>
+                <option value="CALCIUM">Calcium (Bone Loss / Stone Risk)</option>
+              </optgroup>
+              <optgroup label="Hepatic & Metabolic">
+                <option value="ALT">ALT (Liver Enzyme)</option>
+                <option value="AST">AST (Liver / Muscle)</option>
+                <option value="ALKALINE PHOSPHATASE">Alkaline Phosphatase (Bone/Liver)</option>
+                <option value="BILIRUBIN; TOTAL">Total Bilirubin (Hemolysis)</option>
+                <option value="ALBUMIN">Albumin (Plasma Protein)</option>
+                <option value="GLUCOSE">Glucose (Metabolic Regulation)</option>
+              </optgroup>
+              <optgroup label="Inflammatory & Immune Flare">
+                <option value="CRP" selected>CRP (C-Reactive Protein)</option>
+                <option value="IL-6">IL-6 (Cytokine Storm Marker)</option>
+                <option value="TNFα">TNF-alpha (Immune Regulation)</option>
+                <option value="IFNγ">IFN-gamma (Antiviral Cytokine)</option>
+                <option value="IL-10">IL-10 (Anti-Inflammatory)</option>
+                <option value="MCP-1">MCP-1 (Monocyte Chemoattractant)</option>
+              </optgroup>
+              <optgroup label="Cardiovascular & Endothelial">
+                <option value="Fibrinogen">Fibrinogen (Coagulation)</option>
+                <option value="SAP">Serum Amyloid P (SAP)</option>
+                <option value="Haptoglobin">Haptoglobin (Hemoglobin Scavenger)</option>
+                <option value="PF4">Platelet Factor 4 (PF4)</option>
+                <option value="L-Selectin">L-Selectin (Adhesion)</option>
+              </optgroup>
+            </select>
+          </div>
+        </div>
+
+        <div class="relative w-full h-80 bg-space-900/60 p-4 rounded-xl border border-slate-800">
+          <canvas id="bioTrajectoryChart"></canvas>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center font-mono">
+          <div class="bg-space-900 p-3 rounded-lg border border-slate-800">
+            <span class="text-xs text-slate-400 block">PRE-FLIGHT BASELINE</span>
+            <span class="text-lg font-bold text-white" id="bioBaselineVal">--</span>
+          </div>
+          <div class="bg-space-900 p-3 rounded-lg border border-slate-800">
+            <span class="text-xs text-slate-400 block">R+1 POST-LANDING</span>
+            <span class="text-lg font-bold text-cyan-400" id="bioR1Val">--</span>
+          </div>
+          <div class="bg-space-900 p-3 rounded-lg border border-slate-800">
+            <span class="text-xs text-slate-400 block">RE-ENTRY FOLD CHANGE</span>
+            <span class="text-lg font-bold text-amber-400" id="bioFoldChangeVal">--</span>
+          </div>
+          <div class="bg-space-900 p-3 rounded-lg border border-slate-800">
+            <span class="text-xs text-slate-400 block">CLINICAL RANGE STATUS</span>
+            <span class="text-xs font-bold text-emerald-400" id="bioRangeStatus">NOMINAL (WITHIN LIMITS)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- JAVASCRIPT APPLICATION LOGIC -->
+  <script>
+    let activeTab = 'hud';
+    let hudStreamRunning = true;
+    let hudStreamInterval = null;
+    let hudChart = null;
+    let bioChart = null;
+    let cvMode = 'idle';
+    let cvStream = null;
+    let cvAnimationId = null;
+    let cvPulseBuffer = [];
+    let cvFrameSamples = [];
+    let cvSending = false;
+    let cvLastSampleAt = 0;
+    let cvLatestVitals = null;
+    let cvSessionId = null;
+
+    // Global Selection
+    let selectedAstronaut = 'C001';
+    let selectedTimepoint = 'R+1';
+
+    // Buffers for HUD chart
+    const HUD_MAX_POINTS = 30;
+    const hudLabels = [];
+    const hudHrData = [];
+    const hudRespData = [];
+    const hudEdaData = [];
+    let hudTick = 0;
+
+    // 3D Visualizer variables
+    let marsGlobeScene, marsGlobeCamera, marsGlobeRenderer, marsMesh, marsBeacon;
+    let radiationScene, radiationCamera, radiationRenderer, radiationPoints, radiationShield;
+    let humanScene, humanCamera, humanRenderer, humanAvatar = {};
+    let radParticles = [];
+    let marsVisualsInitialized = false;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initHudChart();
+      initBioChart();
+      fetchHudStep();
+      startHudStream();
+      applyEnvPreset('earth');
+      initCvScanner();
+    });
+
+    function switchTab(tabId) {
+      activeTab = tabId;
+      document.getElementById('crewDataSelectors').classList.toggle('hidden', ['cv', 'gravity', 'mars'].includes(tabId));
+      const tabs = ['hud', 'cv', 'gravity', 'mars', 'biomarkers'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`tabBtn-${t}`);
+        const content = document.getElementById(`tabContent-${t}`);
+        if (t === tabId) {
+          btn.className = 'px-4 py-3 active-tab hover:text-cyan-300 transition flex items-center gap-1.5 whitespace-nowrap';
+          content.classList.remove('hidden');
+        } else {
+          btn.className = 'px-4 py-3 text-slate-400 hover:text-cyan-300 transition flex items-center gap-1.5 whitespace-nowrap';
+          content.classList.add('hidden');
+        }
+      });
+
+      if (tabId === 'biomarkers') {
+        updateBioAnalyteChart();
+      } else if (tabId === 'mars') {
+        requestAnimationFrame(() => {
+          if (!marsVisualsInitialized) {
+            initMars3DGlobe();
+            initRadiation3DCanvas();
+            initGravity3DCanvas();
+            initHumanImpact3D();
+            marsVisualsInitialized = true;
+          }
+          onMarsParamChange();
+        });
+      }
+    }
+
+    function onGlobalCrewChange() {
+      selectedAstronaut = document.getElementById('globalAstronautSelect').value;
+      fetchHudStep();
+      updateBioAnalyteChart();
+    }
+
+    function onGlobalTimepointChange() {
+      selectedTimepoint = document.getElementById('globalTimepointSelect').value;
+      document.getElementById('hudMatrixPhaseLabel').textContent = `ACTIVE: ${selectedTimepoint}`;
+      fetchHudStep();
+      updateBioAnalyteChart();
+    }
+
+    // -----------------------------------------------------------------
+    // TAB 1: HUD & TELEMETRY
+    // -----------------------------------------------------------------
+    function initHudChart() {
+      const ctx = document.getElementById('hudLiveChart').getContext('2d');
+      hudChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: hudLabels,
+          datasets: [
+            {
+              label: 'Heart Rate (bpm)',
+              borderColor: '#00e5ff',
+              backgroundColor: 'rgba(0, 229, 255, 0.08)',
+              borderWidth: 2,
+              data: hudHrData,
+              yAxisID: 'yHR',
+              tension: 0.35,
+              pointRadius: 1,
+            },
+            {
+              label: 'Respiration Rate (br/min)',
+              borderColor: '#00e676',
+              backgroundColor: 'rgba(0, 230, 118, 0.08)',
+              borderWidth: 2,
+              data: hudRespData,
+              yAxisID: 'yResp',
+              tension: 0.35,
+              pointRadius: 1,
+            },
+            {
+              label: 'EDA (x10 μS)',
+              borderColor: '#ffab00',
+              backgroundColor: 'rgba(255, 171, 0, 0.08)',
+              borderWidth: 2,
+              data: hudEdaData,
+              yAxisID: 'yEDA',
+              tension: 0.35,
+              pointRadius: 1,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 300 },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255, 255, 255, 0.04)' },
+              ticks: { color: '#64748b', font: { family: 'monospace', size: 10 } }
+            },
+            yHR: {
+              type: 'linear',
+              position: 'left',
+              min: 40,
+              max: 160,
+              grid: { color: 'rgba(0, 229, 255, 0.08)' },
+              ticks: { color: '#00e5ff', font: { family: 'monospace', size: 10 } }
+            },
+            yResp: {
+              type: 'linear',
+              position: 'right',
+              min: 5,
+              max: 40,
+              grid: { display: false },
+              ticks: { color: '#00e676', font: { family: 'monospace', size: 10 } }
+            },
+            yEDA: {
+              type: 'linear',
+              position: 'right',
+              min: 0,
+              max: 150,
+              grid: { display: false },
+              ticks: { display: false }
+            }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    async function fetchHudStep() {
+      try {
+        const res = await fetch(`/api/telemetry/next?astronaut=${selectedAstronaut}&timepoint=${selectedTimepoint}`);
+        const data = await res.json();
+        updateHudUI(data);
+      } catch (e) {
+        console.error('HUD fetch failed', e);
+      }
+    }
+
+    async function injectScenario(name) {
+      try {
+        const res = await fetch(`/api/telemetry/scenario?name=${name}&astronaut=${selectedAstronaut}&timepoint=${selectedTimepoint}`);
+        const data = await res.json();
+        updateHudUI(data);
+      } catch (e) {
+        console.error('Scenario injection failed', e);
+      }
+    }
+
+    function updateHudUI(data) {
+      const wm = data.wearable_metrics;
+      document.getElementById('hudAhriScore').textContent = data.ahri_score.toFixed(1);
+      document.getElementById('hudAhriBar').style.width = `${Math.min(100, Math.max(0, data.ahri_score))}%`;
+
+      const badge = document.getElementById('hudTriageBadge');
+      badge.textContent = data.triage_badge;
+      if (data.triage_level === 'NOMINAL') {
+        badge.className = 'text-xs px-2 py-0.5 rounded font-bold font-mono bg-emerald-950 text-emerald-400 border border-emerald-800';
+        document.getElementById('hudAhriBar').className = 'bg-gradient-to-r from-emerald-500 to-cyan-400 h-2 rounded-full transition-all duration-500';
+      } else if (data.triage_level === 'CAUTION') {
+        badge.className = 'text-xs px-2 py-0.5 rounded font-bold font-mono bg-amber-950 text-amber-400 border border-amber-800';
+        document.getElementById('hudAhriBar').className = 'bg-gradient-to-r from-amber-500 to-amber-300 h-2 rounded-full transition-all duration-500';
+      } else {
+        badge.className = 'text-xs px-2 py-0.5 rounded font-bold font-mono bg-red-950 text-red-400 border border-red-800';
+        document.getElementById('hudAhriBar').className = 'bg-gradient-to-r from-red-600 to-red-400 h-2 rounded-full transition-all duration-500';
+      }
+
+      // Acute Stress
+      const sp = (wm.stress_probability * 100).toFixed(1);
+      document.getElementById('hudStressProb').textContent = `${sp}%`;
+      document.getElementById('hudStressBar').style.width = `${sp}%`;
+      document.getElementById('hudStateBadge').textContent = wm.top_state.toUpperCase();
+
+      // Anomaly
+      document.getElementById('hudAnomalyScore').textContent = `${wm.anomaly_score.toFixed(1)}%`;
+      document.getElementById('hudAnomalyBar').style.width = `${wm.anomaly_score}%`;
+      const aBadge = document.getElementById('hudAnomalyBadge');
+      if (wm.is_anomaly) {
+        aBadge.textContent = 'DETECTED';
+        aBadge.className = 'text-xs px-2 py-0.5 rounded font-bold font-mono bg-red-950 text-red-400 border border-red-700 animate-pulse';
+      } else {
+        aBadge.textContent = 'CLEAR';
+        aBadge.className = 'text-xs px-2 py-0.5 rounded font-bold font-mono bg-emerald-950 text-emerald-400 border border-emerald-900';
+      }
+
+      // Organ Risk
+      const orgRisk = data.organ_health.composite_organ_risk.toFixed(1);
+      document.getElementById('hudOrganRisk').textContent = orgRisk;
+      document.getElementById('hudOrganBar').style.width = `${orgRisk}%`;
+
+      // Gauges
+      document.getElementById('hudValHR').textContent = wm.heart_rate_bpm.toFixed(1);
+      document.getElementById('hudValRMSSD').textContent = wm.hrv_rmssd_ms.toFixed(1);
+      document.getElementById('hudValResp').textContent = wm.respiration_rate_bpm.toFixed(1);
+      document.getElementById('hudValEDA').textContent = wm.eda_microsiemens.toFixed(3);
+      document.getElementById('hudValTemp').textContent = wm.skin_temp_c.toFixed(2);
+
+      // Probabilities
+      if (wm.state_probabilities) {
+        document.getElementById('hudProbBase').textContent = `${((wm.state_probabilities.baseline || 0)*100).toFixed(0)}%`;
+        document.getElementById('hudProbMed').textContent = `${((wm.state_probabilities.meditation || 0)*100).toFixed(0)}%`;
+        document.getElementById('hudProbStress').textContent = `${((wm.state_probabilities.stress || 0)*100).toFixed(0)}%`;
+        document.getElementById('hudProbAmuse').textContent = `${((wm.state_probabilities.amusement || 0)*100).toFixed(0)}%`;
+      }
+
+      // Live Chart Update
+      hudTick++;
+      hudLabels.push(`T+${hudTick * 60}s`);
+      hudHrData.push(wm.heart_rate_bpm);
+      hudRespData.push(wm.respiration_rate_bpm);
+      hudEdaData.push(wm.eda_microsiemens * 10);
+
+      if (hudLabels.length > HUD_MAX_POINTS) {
+        hudLabels.shift();
+        hudHrData.shift();
+        hudRespData.shift();
+        hudEdaData.shift();
+      }
+      hudChart.update();
+
+      renderHudOrganGrid(data.organ_health.panels);
+      renderHudProtocols(data.countermeasures);
+    }
+
+    function renderHudOrganGrid(panels) {
+      const container = document.getElementById('hudOrganGrid');
+      container.innerHTML = '';
+      for (const [key, p] of Object.entries(panels)) {
+        let statusBorder = p.status === 'CRITICAL' ? 'border-red-800 bg-red-950/20' : p.status === 'ELEVATED' ? 'border-amber-800 bg-amber-950/20' : 'border-slate-800 bg-space-900/80';
+        let badgeColor = p.status === 'CRITICAL' ? 'bg-red-950 text-red-400 border-red-800' : p.status === 'ELEVATED' ? 'bg-amber-950 text-amber-400 border-amber-800' : 'bg-emerald-950 text-emerald-400 border-emerald-800';
+
+        const card = document.createElement('div');
+        card.className = `p-4 rounded-xl border ${statusBorder} flex flex-col justify-between`;
+        let bioRows = '';
+        (p.biomarkers || []).slice(0, 3).forEach(b => {
+          bioRows += `
+            <div class="flex items-center justify-between text-xs py-0.5 border-b border-slate-800/60 font-mono">
+              <span class="text-slate-400 truncate max-w-[110px]">${b.analyte}</span>
+              <span class="text-slate-200 font-bold">${b.value !== null ? b.value.toFixed(1) : '--'} <span class="text-cyan-400 text-[10px]">(${b.fold_change}x)</span></span>
+            </div>
+          `;
+        });
+
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-xs font-bold font-mono text-white tracking-wider">${p.panel_name.toUpperCase()}</h3>
+              <span class="text-[10px] px-1.5 py-0.5 rounded font-mono border ${badgeColor}">${p.status}</span>
+            </div>
+            <div class="flex items-baseline justify-between mb-1.5">
+              <span class="text-xs text-slate-400 font-mono">Risk Index</span>
+              <span class="text-xl font-bold font-mono text-white">${p.risk_score.toFixed(1)}</span>
+            </div>
+            <div class="w-full bg-slate-900 rounded-full h-1.5 mb-2 overflow-hidden">
+              <div class="h-1.5 rounded-full ${p.status === 'CRITICAL' ? 'bg-red-500' : p.status === 'ELEVATED' ? 'bg-amber-400' : 'bg-emerald-400'}" style="width: ${p.risk_score}%"></div>
+            </div>
+            <div class="space-y-0.5 mt-2">${bioRows}</div>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-2.5 pt-1.5 border-t border-slate-800">${p.description}</p>
+        `;
+        container.appendChild(card);
+      }
+    }
+
+    function renderHudProtocols(protocols) {
+      const container = document.getElementById('hudProtocolsContainer');
+      container.innerHTML = '';
+      if (!protocols || protocols.length === 0) {
+        container.innerHTML = '<div class="text-xs text-slate-400 font-mono p-3 col-span-3">No configured model review flags for this demo input. This is not a health clearance.</div>';
+        return;
+      }
+      protocols.forEach(pt => {
+        let borderClass = pt.severity === 'CRITICAL' ? 'border-red-800 bg-red-950/25' : pt.severity === 'HIGH' || pt.severity === 'MEDIUM' ? 'border-amber-800 bg-amber-950/20' : 'border-slate-800 bg-space-900/80';
+        let badgeClass = pt.severity === 'CRITICAL' ? 'bg-red-950 text-red-400 border-red-800' : pt.severity === 'HIGH' || pt.severity === 'MEDIUM' ? 'bg-amber-950 text-amber-400 border-amber-800' : 'bg-cyan-950 text-cyan-400 border-cyan-800';
+
+        const el = document.createElement('div');
+        el.className = `p-3.5 rounded-xl border ${borderClass} space-y-1.5`;
+        el.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono font-bold text-white flex items-center gap-1.5">
+              <span class="text-cyan-400">${pt.code}:</span> ${pt.title}
+            </span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded font-mono border ${badgeClass}">${pt.severity}</span>
+          </div>
+          <p class="text-xs text-slate-300 font-sans">${pt.action}</p>
+          <div class="text-[10px] text-slate-400 font-mono pt-1 border-t border-slate-800/60">Rationale: ${pt.rationale}</div>
+        `;
+        container.appendChild(el);
+      });
+    }
+
+    function toggleHudStream() {
+      const btn = document.getElementById('hudStreamBtn');
+      if (hudStreamRunning) {
+        clearInterval(hudStreamInterval);
+        hudStreamRunning = false;
+        btn.textContent = 'RESUME STREAM';
+        btn.className = 'px-3 py-1.5 text-xs font-mono rounded bg-emerald-600 text-white font-bold hover:bg-emerald-500 transition';
+      } else {
+        startHudStream();
+        btn.textContent = 'PAUSE STREAM';
+        btn.className = 'px-3 py-1.5 text-xs font-mono rounded bg-cyan-600 text-white font-bold hover:bg-cyan-500 transition';
+      }
+    }
+
+    function startHudStream() {
+      hudStreamRunning = true;
+      if (hudStreamInterval) clearInterval(hudStreamInterval);
+      hudStreamInterval = setInterval(fetchHudStep, 2500);
+    }
+
+    function stepHudStream() {
+      fetchHudStep();
+    }
+
+    function onHudSubjectChange() {
+      const subj = document.getElementById('hudSubjectSelect').value;
+      fetch(`/api/telemetry/set_subject?subject=${subj}`);
+    }
+
+    function exportClinicalReport() {
+      fetch(`/api/telemetry/next?astronaut=${selectedAstronaut}&timepoint=${selectedTimepoint}`)
+        .then(r => r.json())
+        .then(data => {
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `NASA_Astronaut_${selectedAstronaut}_${selectedTimepoint}_Report.json`;
+          a.click();
+        });
+    }
+
+    // -----------------------------------------------------------------
+    // TAB 2: PERSONAL COMPUTER VISION VITAL SCANNER (rPPG)
+    // -----------------------------------------------------------------
+    function initCvScanner() {
+      startCvLoop();
+    }
+
+    function resetCvReadings() {
+      cvLatestVitals = null;
+      cvFrameSamples = [];
+      cvPulseBuffer = [];
+      document.getElementById('cvHeartRate').textContent = '--';
+      document.getElementById('cvConfidence').textContent = '--';
+      document.getElementById('cvSnrValue').textContent = '--';
+      document.getElementById('cvReferenceStatus').textContent = 'No estimate available.';
+      document.getElementById('cvTriageStatus').textContent = 'NOT ASSESSED';
+      document.getElementById('cvTriageStatus').className = 'text-xs px-2 py-0.5 rounded font-bold font-mono bg-slate-800 text-slate-300 border border-slate-700';
+      document.getElementById('cvSaveButton').disabled = true;
+      document.getElementById('cvSaveButton').className = 'px-3 py-1.5 text-xs font-mono rounded bg-slate-700 text-slate-400 font-bold cursor-not-allowed transition';
+      document.getElementById('cvSaveButton').title = 'Wait for a usable pulse estimate before saving.';
+    }
+
+    function stopCvStream() {
+      if (cvStream) {
+        cvStream.getTracks().forEach(track => track.stop());
+        cvStream = null;
+      }
+      document.getElementById('webcamVideo').srcObject = null;
+    }
+
+    function setCvStatus(message, tone = 'amber') {
+      const colors = {
+        amber: 'text-amber-300',
+        green: 'text-emerald-400',
+        red: 'text-red-400',
+        slate: 'text-slate-300'
+      };
+      document.getElementById('cvTrackerStatus').textContent = message;
+      document.getElementById('cvTrackerStatus').className = `${colors[tone]} font-bold`;
+      document.getElementById('cvStatusDot').className = `w-3 h-3 rounded-full ${tone === 'green' ? 'bg-emerald-400' : tone === 'red' ? 'bg-red-400' : tone === 'slate' ? 'bg-slate-500' : 'bg-amber-400'}`;
+    }
+
+    async function setCVMode(mode) {
+      const webcamBtn = document.getElementById('cvModeWebcamBtn');
+      const simBtn = document.getElementById('cvModeSimBtn');
+      const video = document.getElementById('webcamVideo');
+      stopCvStream();
+      resetCvReadings();
+      cvSessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      cvMode = mode === 'webcam' ? 'starting' : 'idle';
+
+      if (mode === 'webcam') {
+        webcamBtn.className = 'px-3 py-1.5 text-xs font-mono rounded bg-cyan-600 text-white font-bold transition';
+        simBtn.className = 'px-3 py-1.5 text-xs font-mono rounded bg-space-850 text-slate-300 border border-slate-700 transition';
+        document.getElementById('cvSourceLabel').textContent = 'SOURCE: CAMERA';
+        setCvStatus('REQUESTING CAMERA PERMISSION');
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          cvMode = 'idle';
+          setCvStatus('CAMERA API UNAVAILABLE — USE LOCALHOST OR HTTPS', 'red');
+          return;
+        }
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              facingMode: 'user',
+              width: { ideal: 640 },
+              height: { ideal: 380 },
+              frameRate: { ideal: 30 }
+            }
+          });
+          if (cvMode !== 'starting') {
+            stream.getTracks().forEach(track => track.stop());
+            return;
+          }
+          const resetResponse = await fetch('/api/cv/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: cvSessionId })
+          });
+          if (!resetResponse.ok) throw new Error(`Scanner API returned HTTP ${resetResponse.status}`);
+          cvStream = stream;
+          video.srcObject = stream;
+          await video.play();
+          cvMode = 'webcam';
+          cvLastSampleAt = 0;
+          setCvStatus('CAMERA LIVE — CENTER FOREHEAD IN GUIDE', 'green');
+        } catch (error) {
+          stopCvStream();
+          cvMode = 'idle';
+          const reason = error.name === 'NotAllowedError' ? 'PERMISSION DENIED' :
+            error.name === 'NotFoundError' ? 'NO CAMERA FOUND' : 'CAMERA START FAILED';
+          setCvStatus(`${reason} — CHECK BROWSER PERMISSION`, 'red');
+          document.getElementById('cvClinicalNotice').textContent = `${error.message || reason}. No video is being captured. Allow camera access and try again, or choose the clearly labeled simulated feed.`;
+        }
+      } else if (mode === 'sim') {
+        try {
+          const resetResponse = await fetch('/api/cv/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: cvSessionId })
+          });
+          if (!resetResponse.ok) throw new Error(`Scanner API returned HTTP ${resetResponse.status}`);
+        } catch (error) {
+          setCvStatus(`SCANNER RESET FAILED: ${error.message}`, 'red');
+          return;
+        }
+        cvMode = 'sim';
+        simBtn.className = 'px-3 py-1.5 text-xs font-mono rounded bg-cyan-600 text-white font-bold transition';
+        webcamBtn.className = 'px-3 py-1.5 text-xs font-mono rounded bg-space-850 text-slate-300 border border-slate-700 transition';
+        document.getElementById('cvSourceLabel').textContent = 'SOURCE: SIMULATION';
+        document.getElementById('cvClinicalNotice').textContent = 'SIMULATED signal only; it is not measured from a person and must not be used for health decisions.';
+        setCvStatus('SIMULATED CABIN FEED — NOT A MEASUREMENT', 'amber');
+      }
+    }
+
+    function drawSimulatedFace(ctx, w, h) {
+      ctx.fillStyle = '#060b18';
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = 'rgba(0, 229, 255, 0.08)';
+      for (let i = 0; i < w; i += 40) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke();
+      }
+      const cx = w / 2;
+      const cy = h / 2 - 10;
+      ctx.fillStyle = '#1c2847';
+      ctx.beginPath(); ctx.ellipse(cx, cy + 40, 75, 90, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(0, 229, 255, 0.15)';
+      ctx.strokeStyle = '#00e5ff';
+      ctx.beginPath(); ctx.ellipse(cx, cy, 60, 75, 0, 0, Math.PI * 2); ctx.stroke(); ctx.fill();
+      ctx.fillStyle = '#c58f68';
+      ctx.beginPath(); ctx.ellipse(cx, cy + 5, 42, 54, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffab00';
+      ctx.font = 'bold 12px monospace';
+      ctx.fillText('SIMULATION — NO CAMERA INPUT', 18, h - 18);
+    }
+
+    function sampleRgb(ctx, x, y, width, height) {
+      const pixels = ctx.getImageData(x, y, width, height).data;
+      let r = 0, g = 0, b = 0;
+      const count = pixels.length / 4;
+      for (let i = 0; i < pixels.length; i += 4) {
+        r += pixels[i];
+        g += pixels[i + 1];
+        b += pixels[i + 2];
+      }
+      return { r: r / count, g: g / count, b: b / count };
+    }
+
+    function flushCvSamples() {
+      if (cvSending || cvFrameSamples.length < 30 || !['webcam', 'sim'].includes(cvMode)) return;
+      const sourceMode = cvMode;
+      const samples = cvFrameSamples.splice(0, 30);
+      cvSending = true;
+      fetch('/api/cv/frame', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ samples, session_id: cvSessionId })
+      })
+        .then(response => {
+          if (!response.ok) throw new Error(`Scanner API returned HTTP ${response.status}`);
+          return response.json();
+        })
+        .then(data => {
+          if (sourceMode !== cvMode) return;
+          if (data.status === 'INITIALIZING') {
+            setCvStatus(`COLLECTING SIGNAL — ${data.progress_pct}%`);
+            return;
+          }
+          if (data.status !== 'LOCKED' || !Number.isFinite(data.heart_rate_bpm)) {
+            setCvStatus('LOW SIGNAL — ADJUST LIGHTING / POSITION');
+            return;
+          }
+          cvLatestVitals = data;
+          document.getElementById('cvHeartRate').textContent = data.heart_rate_bpm.toFixed(1);
+          document.getElementById('cvConfidence').textContent = `${Math.round(data.confidence_score * 100)}%`;
+          document.getElementById('cvSnrValue').textContent = `${data.signal_quality_snr.toFixed(2)} dB`;
+          const pulseReference = data.heart_rate_bpm >= 60 && data.heart_rate_bpm <= 100
+            ? 'Within a broad adult resting reference (60–100 BPM); not an assessment.'
+            : 'Outside a broad adult resting reference (60–100 BPM); not a danger alert or diagnosis.';
+          document.getElementById('cvReferenceStatus').textContent = pulseReference;
+          document.getElementById('cvTriageStatus').textContent = 'NOT ASSESSED';
+          document.getElementById('cvSaveButton').disabled = false;
+          document.getElementById('cvSaveButton').className = 'px-3 py-1.5 text-xs font-mono rounded bg-emerald-700 text-white font-bold hover:bg-emerald-600 transition';
+          document.getElementById('cvSaveButton').title = '';
+          setCvStatus(sourceMode === 'sim' ? 'SIMULATED ESTIMATE — NOT A MEASUREMENT' : 'SIGNAL LOCKED — EXPERIMENTAL ESTIMATE', sourceMode === 'sim' ? 'amber' : 'green');
+          if (Array.isArray(data.pulse_waveform)) cvPulseBuffer = data.pulse_waveform;
+        })
+        .catch(error => {
+          if (sourceMode === cvMode) setCvStatus(`SCANNER ERROR: ${error.message}`, 'red');
+        })
+        .finally(() => {
+          cvSending = false;
+          if (cvFrameSamples.length >= 30) flushCvSamples();
+        });
+    }
+
+    function startCvLoop() {
+      const canvas = document.getElementById('cvCanvas');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      const pCanvas = document.getElementById('pulseCanvas');
+      const pCtx = pCanvas.getContext('2d');
+      const video = document.getElementById('webcamVideo');
+
+      function drawFrame() {
+        const w = canvas.width;
+        const h = canvas.height;
+        const now = performance.now();
+        const rx = w / 2 - 50;
+        const ry = h / 2 - 60;
+        const rw = 100;
+        const rh = 110;
+
+        if (cvMode === 'webcam' && video.readyState >= 2) {
+          ctx.drawImage(video, 0, 0, w, h);
+        } else if (cvMode === 'sim') {
+          drawSimulatedFace(ctx, w, h);
+        } else {
+          ctx.fillStyle = '#060b18';
+          ctx.fillRect(0, 0, w, h);
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = '16px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(cvMode === 'starting' ? 'WAITING FOR CAMERA PERMISSION…' : 'CAMERA OFF — START CAMERA OR CHOOSE SIMULATION', w / 2, h / 2);
+          ctx.textAlign = 'start';
+        }
+
+        if (cvMode === 'webcam' || cvMode === 'sim') {
+          if (now - cvLastSampleAt >= 1000 / 30) {
+            let sample;
+            if (cvMode === 'webcam' && video.readyState >= 2) {
+              sample = sampleRgb(ctx, rx + 15, ry + 10, rw - 30, 30);
+            } else if (cvMode === 'sim') {
+              const pulse = Math.sin(2 * Math.PI * 1.25 * now / 1000);
+              sample = { r: 100, g: 120 + 3 * pulse, b: 90 };
+            }
+            if (sample) {
+              cvFrameSamples.push({ ...sample, timestamp: now / 1000 });
+              cvPulseBuffer.push(sample.g);
+              if (cvPulseBuffer.length > 180) cvPulseBuffer.shift();
+              cvLastSampleAt = now;
+              flushCvSamples();
+            }
+          }
+          ctx.strokeStyle = '#00e676';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(rx, ry, rw, rh);
+          ctx.fillStyle = 'rgba(0, 230, 118, 0.16)';
+          ctx.fillRect(rx + 15, ry + 10, rw - 30, 30);
+          ctx.fillStyle = '#00e676';
+          ctx.font = '10px monospace';
+          ctx.fillText('CENTER FOREHEAD IN GUIDE', rx + 5, ry - 6);
+        } else {
+          cvPulseBuffer = [];
+        }
+
+        pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+        if (cvPulseBuffer.length > 1) {
+          const min = Math.min(...cvPulseBuffer);
+          const max = Math.max(...cvPulseBuffer);
+          const span = Math.max(max - min, 0.001);
+          pCtx.strokeStyle = '#00e676';
+          pCtx.lineWidth = 2;
+          pCtx.beginPath();
+          const step = pCanvas.width / (cvPulseBuffer.length - 1);
+          for (let i = 0; i < cvPulseBuffer.length; i++) {
+            const y = pCanvas.height - ((cvPulseBuffer[i] - min) / span) * pCanvas.height;
+            if (i === 0) pCtx.moveTo(0, y);
+            else pCtx.lineTo(i * step, y);
+          }
+          pCtx.stroke();
+        }
+        cvAnimationId = requestAnimationFrame(drawFrame);
+      }
+      drawFrame();
+    }
+
+    async function saveCurrentCvScan() {
+      if (!cvLatestVitals || !Number.isFinite(cvLatestVitals.heart_rate_bpm)) return;
+      if (!confirm('Save this estimate to the separate local demo-scans table? It will not be linked to an astronaut or medical record.')) return;
+      const notes = cvMode === 'sim'
+        ? 'Simulated rPPG demonstration; not measured from a person.'
+        : 'Experimental camera rPPG estimate; not clinically validated.';
+      try {
+        const response = await fetch('/api/cv/save_scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            heart_rate_bpm: cvLatestVitals.heart_rate_bpm,
+            signal_quality_snr: cvLatestVitals.signal_quality_snr,
+            confidence_score: cvLatestVitals.confidence_score,
+            source_mode: cvMode === 'sim' ? 'simulation' : 'camera',
+            notes
+          })
+        });
+        if (!response.ok) throw new Error(`Database returned HTTP ${response.status}`);
+        const result = await response.json();
+        alert(`Demo estimate saved separately as record #${result.record_id}. It is not a medical record or diagnosis.`);
+      } catch (error) {
+        setCvStatus(`SAVE FAILED: ${error.message}`, 'red');
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // TAB 3: SWARM ACO OPTIMIZATION
+    // -----------------------------------------------------------------
+    async function loadAcoData() {
+      try {
+        const res = await fetch('/api/aco/results');
+        const data = await res.json();
+        if (data.best_features) {
+          renderAcoDashboard(data);
+        }
+      } catch (e) {
+        console.error('Failed to load ACO data', e);
+      }
+    }
+
+    function renderAcoDashboard(data) {
+      document.getElementById('acoAccuracy').textContent = `${(data.best_accuracy * 100).toFixed(2)}%`;
+      document.getElementById('acoF1').textContent = data.best_f1.toFixed(3);
+      document.getElementById('acoReduction').textContent = `${data.reduction_pct}%`;
+      document.getElementById('acoFeatureCount').textContent = `${data.num_features} / ${data.all_features_count}`;
+
+      const chipContainer = document.getElementById('acoFeaturesList');
+      chipContainer.innerHTML = '';
+      data.best_features.forEach(f => {
+        const chip = document.createElement('span');
+        const ph = (data.final_pheromones[f] || 0).toFixed(2);
+        chip.className = 'px-3 py-1.5 rounded-lg bg-amber-950/60 border border-amber-800 text-amber-300 text-xs font-mono flex items-center gap-1.5';
+        chip.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span> <b>${f}</b> (Pheromone: ${ph})`;
+        chipContainer.appendChild(chip);
+      });
+
+      // Pheromone Chart
+      const pCtx = document.getElementById('acoPheromoneChart').getContext('2d');
+      const pLabels = Object.keys(data.final_pheromones);
+      const pVals = Object.values(data.final_pheromones);
+
+      if (acoPheromoneChart) acoPheromoneChart.destroy();
+      acoPheromoneChart = new Chart(pCtx, {
+        type: 'bar',
+        data: {
+          labels: pLabels,
+          datasets: [{
+            label: 'Pheromone Level',
+            data: pVals,
+            backgroundColor: pLabels.map(l => data.best_features.includes(l) ? '#ffab00' : 'rgba(255, 255, 255, 0.15)'),
+            borderWidth: 0,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              ticks: { color: '#94a3b8', font: { family: 'monospace', size: 9 }, maxRotation: 60 },
+              grid: { display: false }
+            },
+            y: {
+              ticks: { color: '#94a3b8', font: { family: 'monospace', size: 10 } },
+              grid: { color: 'rgba(255, 255, 255, 0.05)' }
+            }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      // Convergence Chart
+      const cCtx = document.getElementById('acoConvergenceChart').getContext('2d');
+      const iters = data.convergence_history.map(h => `It ${h.iteration}`);
+      const bestFits = data.convergence_history.map(h => h.best_global_fitness);
+      const meanFits = data.convergence_history.map(h => h.mean_iteration_fitness);
+
+      if (acoConvergenceChart) acoConvergenceChart.destroy();
+      acoConvergenceChart = new Chart(cCtx, {
+        type: 'line',
+        data: {
+          labels: iters,
+          datasets: [
+            {
+              label: 'Global Elite Fitness',
+              borderColor: '#00e5ff',
+              data: bestFits,
+              borderWidth: 2.5,
+              tension: 0.2
+            },
+            {
+              label: 'Colony Mean Fitness',
+              borderColor: '#ffab00',
+              data: meanFits,
+              borderWidth: 1.5,
+              borderDash: [4, 4],
+              tension: 0.2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { ticks: { color: '#94a3b8', font: { family: 'monospace' } }, grid: { color: 'rgba(255, 255, 255, 0.05)' } },
+            y: { ticks: { color: '#94a3b8', font: { family: 'monospace' } }, grid: { color: 'rgba(255, 255, 255, 0.05)' } }
+          },
+          plugins: { legend: { labels: { color: '#cbd5e1', font: { family: 'monospace', size: 10 } } } }
+        }
+      });
+    }
+
+    function runAcoOptimization() {
+      loadAcoData();
+    }
+
+    // -----------------------------------------------------------------
+    // TAB 4: GRAVITY & ENVIRONMENT SIMULATOR
+    // -----------------------------------------------------------------
+    function applyEnvPreset(preset) {
+      fetch(`/api/environment/simulate?preset=${preset}&days=180`)
+        .then(r => r.json())
+        .then(data => {
+          const p = data.parameters;
+          document.getElementById('sliderGravity').value = p.gravity_g;
+          document.getElementById('sliderPressure').value = p.cabin_pressure_kpa;
+          document.getElementById('sliderO2').value = p.oxygen_pct;
+          document.getElementById('sliderCO2').value = p.co2_pct;
+          document.getElementById('sliderRadiation').value = p.radiation_usv_hr;
+          document.getElementById('sliderDays').value = p.mission_days;
+          updateEnvDisplay(data);
+        });
+    }
+
+    function onEnvSliderChange() {
+      const g = document.getElementById('sliderGravity').value;
+      const p = document.getElementById('sliderPressure').value;
+      const o2 = document.getElementById('sliderO2').value;
+      const co2 = document.getElementById('sliderCO2').value;
+      const rad = document.getElementById('sliderRadiation').value;
+      const days = document.getElementById('sliderDays').value;
+
+      document.getElementById('sliderValGravity').textContent = `${parseFloat(g).toFixed(2)} G`;
+      document.getElementById('sliderValPressure').textContent = `${parseFloat(p).toFixed(1)} kPa`;
+      document.getElementById('sliderValO2').textContent = `${parseFloat(o2).toFixed(1)}%`;
+      document.getElementById('sliderValCO2').textContent = `${parseFloat(co2).toFixed(2)}%`;
+      document.getElementById('sliderValRadiation').textContent = `${parseFloat(rad).toFixed(1)} μSv/h`;
+      document.getElementById('sliderValDays').textContent = `${days} days`;
+
+      fetch(`/api/environment/simulate?gravity=${g}&pressure=${p}&o2=${o2}&co2=${co2}&radiation=${rad}&days=${days}`)
+        .then(r => r.json())
+        .then(data => updateEnvDisplay(data));
+    }
+
+    function updateEnvDisplay(data) {
+      const pi = data.physiological_impacts;
+      const at = data.atmospheric_status;
+
+      document.getElementById('resFluidShift').textContent = `${pi.fluid_shift_score.toFixed(1)}%`;
+      document.getElementById('resSansRisk').textContent = `${pi.sans_risk_score.toFixed(1)}%`;
+      document.getElementById('resOnsdMm').textContent = `ONSD: ${pi.estimated_onsd_mm.toFixed(2)} mm`;
+      document.getElementById('resBmdLoss').textContent = `-${pi.total_bmd_loss_pct.toFixed(1)}%`;
+      document.getElementById('resHypercalciuria').textContent = `Stone Risk: ${pi.hypercalciuria_risk.toFixed(0)}%`;
+      document.getElementById('resPo2').textContent = at.alveolar_po2_mmhg.toFixed(1);
+      document.getElementById('resHypoxiaStatus').textContent = at.status;
+      document.getElementById('resRadiationDose').textContent = `${pi.cumulative_dose_msv.toFixed(1)} mSv`;
+      document.getElementById('resPelConsumed').textContent = `${pi.radiation_limit_consumed_pct.toFixed(1)}% Career PEL`;
+      document.getElementById('resOrthoRisk').textContent = `${pi.orthostatic_intolerance_risk.toFixed(1)}%`;
+
+      const cmList = document.getElementById('envCountermeasuresList');
+      cmList.innerHTML = '';
+      (data.countermeasures || []).forEach(cm => {
+        const item = document.createElement('div');
+        item.className = 'p-3 rounded-lg bg-space-850 border border-slate-800 space-y-1';
+        item.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono font-bold text-cyan-300">${cm.countermeasure}</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded font-mono bg-cyan-950 text-cyan-400 border border-cyan-800">${cm.system}</span>
+          </div>
+          <p class="text-xs text-slate-300 font-sans">Review: ${cm.prescription}</p>
+          <div class="text-[10px] text-slate-500 font-mono">Target: ${cm.target}</div>
+        `;
+        cmList.appendChild(item);
+      });
+    }
+
+    // -----------------------------------------------------------------
+    // TAB 5: NASA MARS 3D EXPEDITION & 3D VISUALIZERS
+    // -----------------------------------------------------------------
+    function initMars3DGlobe() {
+      const container = document.getElementById('mars3dGlobeContainer');
+      const canvas = document.getElementById('marsGlobeCanvas');
+      const sizeRenderer = () => {
+        const width = Math.max(1, container.clientWidth);
+        const height = Math.max(1, container.clientHeight);
+        marsGlobeCamera.aspect = width / height;
+        marsGlobeCamera.updateProjectionMatrix();
+        marsGlobeRenderer.setSize(width, height, false);
+      };
+
+      if (typeof THREE === 'undefined') {
+        drawMarsFallback(canvas, container);
+        document.getElementById('marsGlobeStatus').textContent = '2D FALLBACK — 3D LIBRARY UNAVAILABLE';
+        return;
+      }
+
+      try {
+        const width = Math.max(1, container.clientWidth);
+        const height = Math.max(1, container.clientHeight);
+        marsGlobeScene = new THREE.Scene();
+        marsGlobeCamera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+        marsGlobeCamera.position.z = 2.4;
+        marsGlobeRenderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+        marsGlobeRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        marsGlobeRenderer.setSize(width, height, false);
+
+        const textureCanvas = document.createElement('canvas');
+        textureCanvas.width = 1024;
+        textureCanvas.height = 512;
+        const textureCtx = textureCanvas.getContext('2d');
+        textureCtx.fillStyle = '#9b4328';
+        textureCtx.fillRect(0, 0, textureCanvas.width, textureCanvas.height);
+        for (let i = 0; i < 180; i++) {
+          const x = Math.random() * textureCanvas.width;
+          const y = Math.random() * textureCanvas.height;
+          const radius = 4 + Math.random() * 20;
+          textureCtx.fillStyle = i % 3 === 0 ? 'rgba(58,31,26,0.48)' : 'rgba(226,122,67,0.25)';
+          textureCtx.beginPath();
+          textureCtx.ellipse(x, y, radius * 1.5, radius, Math.random(), 0, Math.PI * 2);
+          textureCtx.fill();
+        }
+        const marsTexture = new THREE.CanvasTexture(textureCanvas);
+        marsTexture.colorSpace = THREE.SRGBColorSpace;
+        marsMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.85, 64, 48),
+          new THREE.MeshPhongMaterial({ map: marsTexture, emissive: 0x220500, shininess: 8 })
+        );
+        marsGlobeScene.add(marsMesh);
+
+        const beaconLat = 18.38 * Math.PI / 180;
+        const beaconLon = 77.58 * Math.PI / 180;
+        marsBeacon = new THREE.Mesh(
+          new THREE.SphereGeometry(0.045, 16, 16),
+          new THREE.MeshBasicMaterial({ color: 0x00e5ff })
+        );
+        marsBeacon.position.set(
+          0.87 * Math.cos(beaconLat) * Math.sin(beaconLon),
+          0.87 * Math.sin(beaconLat),
+          0.87 * Math.cos(beaconLat) * Math.cos(beaconLon)
+        );
+        marsGlobeScene.add(marsBeacon);
+        const light = new THREE.DirectionalLight(0xffffff, 1.4);
+        light.position.set(3, 2, 4);
+        marsGlobeScene.add(light, new THREE.AmbientLight(0x442018, 0.8));
+        new ResizeObserver(sizeRenderer).observe(container);
+        document.getElementById('marsGlobeStatus').textContent = 'WEBGL 3D — ROTATING MARS / JEZERO MARKER';
+
+        function animate() {
+          requestAnimationFrame(animate);
+          marsMesh.rotation.y += 0.003;
+          marsGlobeRenderer.render(marsGlobeScene, marsGlobeCamera);
+        }
+        animate();
+      } catch (error) {
+        console.error('Mars 3D renderer failed:', error);
+        drawMarsFallback(canvas, container);
+        document.getElementById('marsGlobeStatus').textContent = '3D UNAVAILABLE — SHOWING 2D FALLBACK';
+      }
+    }
+
+    function drawMarsFallback(canvas, container) {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      let angle = 0;
+      const draw = () => {
+        const width = Math.max(1, container.clientWidth);
+        const height = Math.max(1, container.clientHeight);
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+          canvas.width = Math.round(width * dpr);
+          canvas.height = Math.round(height * dpr);
+        }
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, width, height);
+        const radius = Math.min(width, height) * 0.39;
+        const cx = width / 2, cy = height / 2;
+        const gradient = ctx.createRadialGradient(cx - radius * 0.35, cy - radius * 0.35, 2, cx, cy, radius);
+        gradient.addColorStop(0, '#e8894f');
+        gradient.addColorStop(0.68, '#a8472a');
+        gradient.addColorStop(1, '#301711');
+        ctx.fillStyle = gradient;
+        ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fill();
+        ctx.save();
+        ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.clip();
+        ctx.strokeStyle = 'rgba(255,190,130,0.45)';
+        for (let i = -2; i <= 2; i++) {
+          const offset = Math.sin(angle + i) * radius * 0.65;
+          ctx.beginPath();
+          ctx.ellipse(cx + offset, cy, Math.max(2, Math.abs(Math.cos(angle + i)) * radius * 0.4), radius, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+        ctx.fillStyle = '#00e5ff';
+        ctx.beginPath(); ctx.arc(cx + radius * 0.55, cy - radius * 0.2, 4, 0, Math.PI * 2); ctx.fill();
+        angle += 0.008;
+        requestAnimationFrame(draw);
+      };
+      draw();
+    }
+
+    function initRadiation3DCanvas() {
+      if (typeof THREE === 'undefined') {
+        initRadiation2DFallback();
+        document.getElementById('marsRadAttenuationText').textContent += ' (3D unavailable; 2D illustration shown.)';
+        return;
+      }
+      const canvas = document.getElementById('radiation3dCanvas');
+      const container = canvas.parentElement;
+      try {
+        const width = Math.max(1, container.clientWidth);
+        const height = Math.max(1, container.clientHeight);
+        radiationScene = new THREE.Scene();
+        radiationCamera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+        radiationCamera.position.set(0, 0.2, 4.2);
+        radiationRenderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+        radiationRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        radiationRenderer.setSize(width, height, false);
+        radiationScene.add(new THREE.AmbientLight(0xffffff, 1.2));
+
+        radiationShield = new THREE.Mesh(
+          new THREE.BoxGeometry(2.5, 0.3, 1.1),
+          new THREE.MeshPhongMaterial({ color: 0x8c633c, transparent: true, opacity: 0.95 })
+        );
+        radiationShield.position.y = -0.4;
+        radiationScene.add(radiationShield);
+        const habitat = new THREE.Mesh(
+          new THREE.BoxGeometry(1.7, 0.55, 0.75),
+          new THREE.MeshPhongMaterial({ color: 0x00a8c7, transparent: true, opacity: 0.65, wireframe: true })
+        );
+        habitat.position.y = -1.05;
+        radiationScene.add(habitat);
+        const particles = [];
+        const positions = new Float32Array(180 * 3);
+        for (let i = 0; i < 180; i++) {
+          particles.push({ x: (Math.random() - 0.5) * 3.2, y: Math.random() * 2.6 - 0.2, z: (Math.random() - 0.5) * 1.4, speed: 0.008 + Math.random() * 0.012 });
+          positions[i * 3] = particles[i].x;
+          positions[i * 3 + 1] = particles[i].y;
+          positions[i * 3 + 2] = particles[i].z;
+        }
+        radParticles = particles;
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const positionAttribute = geometry.getAttribute('position');
+        radiationPoints = new THREE.Points(geometry, new THREE.PointsMaterial({ color: 0xff6238, size: 0.055, sizeAttenuation: true }));
+        radiationScene.add(radiationPoints);
+
+        new ResizeObserver(() => {
+          const w = Math.max(1, container.clientWidth);
+          const h = Math.max(1, container.clientHeight);
+          radiationCamera.aspect = w / h;
+          radiationCamera.updateProjectionMatrix();
+          radiationRenderer.setSize(w, h, false);
+        }).observe(container);
+        updateRadiationShield();
+
+        function animate() {
+          requestAnimationFrame(animate);
+          const shieldTop = radiationShield.position.y + radiationShield.scale.y * 0.15;
+          const attenuation = 1 - Math.pow(0.5, Number(document.getElementById('marsSliderShield').value) / 35);
+          for (let i = 0; i < radParticles.length; i++) {
+            const particle = radParticles[i];
+            particle.y -= particle.speed;
+            if (particle.y < shieldTop && particle.y > shieldTop - 0.06 && Math.random() < attenuation) {
+              particle.y = 1.5 + Math.random() * 1.2;
+              particle.x = (Math.random() - 0.5) * 3.2;
+            } else if (particle.y < -1.45) {
+              particle.y = 1.5 + Math.random() * 1.2;
+              particle.x = (Math.random() - 0.5) * 3.2;
+            }
+            positionAttribute.setXYZ(i, particle.x, particle.y, particle.z);
+          }
+          positionAttribute.needsUpdate = true;
+          radiationRenderer.render(radiationScene, radiationCamera);
+        }
+        animate();
+      } catch (error) {
+        console.error('Radiation 3D renderer failed:', error);
+        initRadiation2DFallback();
+        document.getElementById('marsRadAttenuationText').textContent += ' (3D unavailable; 2D illustration shown.)';
+      }
+    }
+
+    function updateRadiationShield() {
+      if (!radiationShield) return;
+      const thickness = Number(document.getElementById('marsSliderShield').value);
+      radiationShield.scale.y = 0.55 + thickness / 250;
+      radiationShield.material.opacity = 0.45 + Math.min(0.5, thickness / 500);
+    }
+
+    function initRadiation2DFallback() {
+      const canvas = document.getElementById('radiation3dCanvas');
+      const resizeCanvas = () => {
+        const width = Math.max(1, canvas.clientWidth);
+        const height = Math.max(1, canvas.clientHeight);
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+        }
+      };
+      resizeCanvas();
+      new ResizeObserver(resizeCanvas).observe(canvas);
+      const ctx = canvas.getContext('2d');
+      radParticles = [];
+      for (let i = 0; i < 40; i++) {
+        radParticles.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height * 0.4,
+          vy: 2 + Math.random() * 4,
+          energy: 0.5 + Math.random() * 0.5
+        });
+      }
+
+      function drawRad() {
+        ctx.fillStyle = '#060a17';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Regolith Shielding Barrier Block
+        const shieldThick = parseFloat(document.getElementById('marsSliderShield') ? document.getElementById('marsSliderShield').value : 50);
+        const shieldHeight = Math.min(120, 20 + shieldThick * 0.4);
+        const barrierY = canvas.height - shieldHeight - 20;
+
+        ctx.fillStyle = '#4a3525';
+        ctx.fillRect(20, barrierY, canvas.width - 40, shieldHeight);
+        ctx.strokeStyle = '#ffab00';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(20, barrierY, canvas.width - 40, shieldHeight);
+
+        ctx.fillStyle = '#ffab00';
+        ctx.font = '10px monospace';
+        ctx.fillText(`Regolith Shield Barrier (${shieldThick} cm)`, 30, barrierY + 15);
+
+        // Habitat protected zone
+        ctx.fillStyle = 'rgba(0, 229, 255, 0.15)';
+        ctx.fillRect(20, barrierY + shieldHeight, canvas.width - 40, 20);
+        ctx.fillStyle = '#00e5ff';
+        ctx.fillText('Protected Habitat Crew Quarters', 30, barrierY + shieldHeight + 14);
+
+        // Cosmic ray ions
+        radParticles.forEach(p => {
+          ctx.strokeStyle = '#ff3d00';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x + (Math.random() - 0.5) * 4, p.y + 12);
+          ctx.stroke();
+
+          p.y += p.vy;
+          if (p.y >= barrierY) {
+            // Chance of particle absorption by shield
+            const absorbChance = Math.min(0.96, shieldThick / 150.0);
+            if (Math.random() < absorbChance) {
+              p.y = 0;
+              p.x = Math.random() * canvas.width;
+            } else if (p.y > canvas.height) {
+              p.y = 0;
+              p.x = Math.random() * canvas.width;
+            }
+          }
+        });
+
+        requestAnimationFrame(drawRad);
+      }
+      drawRad();
+    }
+
+    function initHumanImpact3D() {
+      const container = document.getElementById('humanImpactContainer');
+      const canvas = document.getElementById('humanImpactCanvas');
+      if (typeof THREE === 'undefined') {
+        drawHumanImpactFallback(canvas, container);
+        return;
+      }
+
+      try {
+        const width = Math.max(1, container.clientWidth);
+        const height = Math.max(1, container.clientHeight);
+        humanScene = new THREE.Scene();
+        humanCamera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100);
+        humanCamera.position.set(0, 0.15, 5.2);
+        humanRenderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+        humanRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        humanRenderer.setSize(width, height, false);
+        humanScene.add(new THREE.AmbientLight(0xffffff, 1.4));
+        const light = new THREE.DirectionalLight(0xffffff, 1.5);
+        light.position.set(-2, 4, 5);
+        humanScene.add(light);
+
+        const avatar = new THREE.Group();
+        const makeMaterial = color => new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05 });
+        const baseMaterial = makeMaterial(0x87a9bb);
+        const headMaterial = makeMaterial(0x26c6da);
+        const torsoMaterial = makeMaterial(0x26c6da);
+        const boneMaterial = makeMaterial(0x26c6da);
+        const atmosphereMaterial = new THREE.MeshStandardMaterial({
+          color: 0x34d399,
+          transparent: true,
+          opacity: 0.18,
+          wireframe: true,
+          depthWrite: false
+        });
+        const sphere = (radius, position, material) => {
+          const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 18), material);
+          mesh.position.set(...position);
+          avatar.add(mesh);
+          return mesh;
+        };
+        const capsule = (radius, length, position, material, rotationZ = 0) => {
+          const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(radius, length, 5, 12), material);
+          mesh.position.set(...position);
+          mesh.rotation.z = rotationZ;
+          avatar.add(mesh);
+          return mesh;
+        };
+        sphere(0.25, [0, 1.35, 0], headMaterial);
+        capsule(0.09, 0.16, [0, 1.05, 0], baseMaterial);
+        capsule(0.32, 0.68, [0, 0.48, 0], torsoMaterial);
+        capsule(0.23, 0.2, [0, -0.02, 0], boneMaterial);
+        capsule(0.095, 0.52, [-0.43, 0.55, 0], baseMaterial, -0.16);
+        capsule(0.095, 0.52, [0.43, 0.55, 0], baseMaterial, 0.16);
+        sphere(0.12, [-0.49, 0.16, 0], baseMaterial);
+        sphere(0.12, [0.49, 0.16, 0], baseMaterial);
+        capsule(0.12, 0.57, [-0.15, -0.55, 0], boneMaterial, 0.04);
+        capsule(0.12, 0.57, [0.15, -0.55, 0], boneMaterial, -0.04);
+        sphere(0.13, [-0.15, -1.02, 0], baseMaterial);
+        sphere(0.13, [0.15, -1.02, 0], baseMaterial);
+        const atmosphereShell = new THREE.Mesh(new THREE.SphereGeometry(0.74, 24, 16), atmosphereMaterial);
+        atmosphereShell.scale.set(1, 1.9, 0.7);
+        atmosphereShell.position.y = 0.25;
+        avatar.add(atmosphereShell);
+        avatar.position.y = -0.12;
+        humanScene.add(avatar);
+        humanAvatar = { avatar, headMaterial, torsoMaterial, boneMaterial, baseMaterial, atmosphereMaterial };
+
+        const floor = new THREE.GridHelper(3.2, 12, 0x17445b, 0x102336);
+        floor.position.y = -1.25;
+        humanScene.add(floor);
+        new ResizeObserver(() => {
+          const w = Math.max(1, container.clientWidth);
+          const h = Math.max(1, container.clientHeight);
+          humanCamera.aspect = w / h;
+          humanCamera.updateProjectionMatrix();
+          humanRenderer.setSize(w, h, false);
+        }).observe(container);
+
+        const animate = () => {
+          requestAnimationFrame(animate);
+          avatar.rotation.y = Math.sin(performance.now() * 0.0004) * 0.12;
+          humanRenderer.render(humanScene, humanCamera);
+        };
+        animate();
+      } catch (error) {
+        console.error('3D human impact renderer failed:', error);
+        drawHumanImpactFallback(canvas, container);
+      }
+    }
+
+    function drawHumanImpactFallback(canvas, container) {
+      const ctx = canvas.getContext('2d');
+      const draw = () => {
+        const width = Math.max(1, container.clientWidth);
+        const height = Math.max(1, container.clientHeight);
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+          canvas.width = Math.round(width * dpr);
+          canvas.height = Math.round(height * dpr);
+        }
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = '#87a9bb';
+        ctx.beginPath(); ctx.arc(width / 2, 45, 18, 0, Math.PI * 2); ctx.fill();
+        ctx.fillRect(width / 2 - 22, 68, 44, 80);
+        ctx.fillRect(width / 2 - 44, 76, 20, 72);
+        ctx.fillRect(width / 2 + 24, 76, 20, 72);
+        ctx.fillRect(width / 2 - 18, 148, 14, 110);
+        ctx.fillRect(width / 2 + 4, 148, 14, 110);
+      };
+      draw();
+      new ResizeObserver(draw).observe(container);
+    }
+
+    function impactBand(value) {
+      if (value >= 60) return { label: 'Higher model index', color: '#ef4444', text: 'text-red-400' };
+      if (value >= 30) return { label: 'Elevated model index', color: '#f59e0b', text: 'text-amber-400' };
+      return { label: 'Lower model index', color: '#34d399', text: 'text-emerald-400' };
+    }
+
+    function updateHumanImpact(data) {
+      const sim = data.custom_simulation;
+      const impacts = sim.physiological_impacts;
+      const atmosphere = sim.atmospheric_status;
+      const indicators = [
+        { name: 'Fluid-shift model index', value: impacts.fluid_shift_score, detail: `${impacts.fluid_shift_score.toFixed(1)} / 100`, region: 'Torso' },
+        { name: 'Neuro-ocular (SANS) model index', value: impacts.sans_risk_score, detail: `${impacts.sans_risk_score.toFixed(1)} / 100`, region: 'Head' },
+        { name: 'Bone-loss scenario index', value: Math.min(100, impacts.total_bmd_loss_pct * 10), detail: `${impacts.total_bmd_loss_pct.toFixed(2)}% modeled change`, region: 'Legs / skeleton' },
+        { name: 'Radiation planning index', value: Math.min(100, impacts.radiation_limit_consumed_pct), detail: `${impacts.cumulative_dose_msv.toFixed(1)} mSv simplified dose estimate`, region: 'Whole body' },
+        { name: 'Atmospheric oxygen model index', value: atmosphere.hypoxia_risk_pct, detail: `${atmosphere.status}; pO₂ ${atmosphere.alveolar_po2_mmhg.toFixed(1)} mmHg`, region: 'Whole body' }
+      ];
+
+      const host = document.getElementById('humanImpactReadouts');
+      host.replaceChildren();
+      for (const indicator of indicators) {
+        const band = impactBand(indicator.value);
+        const card = document.createElement('div');
+        card.className = 'bg-space-850 rounded-lg border border-slate-800 p-3 space-y-1';
+        const title = document.createElement('div');
+        title.className = 'flex items-center justify-between gap-2';
+        const name = document.createElement('span');
+        name.className = 'text-[11px] text-slate-300 font-mono';
+        name.textContent = indicator.name;
+        const badge = document.createElement('span');
+        badge.className = `text-[10px] font-mono ${band.text}`;
+        badge.textContent = band.label;
+        title.append(name, badge);
+        const detail = document.createElement('div');
+        detail.className = 'text-sm text-white font-mono';
+        detail.textContent = indicator.detail;
+        const region = document.createElement('div');
+        region.className = 'text-[10px] text-slate-500 font-mono';
+        region.textContent = `Illustrated region: ${indicator.region}`;
+        card.append(title, detail, region);
+        host.appendChild(card);
+      }
+
+      if (humanAvatar.headMaterial) {
+        humanAvatar.headMaterial.color.set(impactBand(impacts.sans_risk_score).color);
+        humanAvatar.torsoMaterial.color.set(impactBand(impacts.fluid_shift_score).color);
+        humanAvatar.boneMaterial.color.set(impactBand(Math.min(100, impacts.total_bmd_loss_pct * 10)).color);
+        humanAvatar.baseMaterial.color.set(impactBand(Math.min(100, impacts.radiation_limit_consumed_pct)).color);
+        humanAvatar.atmosphereMaterial.color.set(impactBand(atmosphere.hypoxia_risk_pct).color);
+      }
+    }
+
+    function initGravity3DCanvas() {
+      const canvas = document.getElementById('gravity3dCanvas');
+      const resizeCanvas = () => {
+        const width = Math.max(1, canvas.clientWidth);
+        const height = Math.max(1, canvas.clientHeight);
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+        }
+      };
+      resizeCanvas();
+      new ResizeObserver(resizeCanvas).observe(canvas);
+      const ctx = canvas.getContext('2d');
+      let gTick = 0;
+
+      function drawGrav() {
+        gTick++;
+        ctx.fillStyle = '#060a17';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const gravG = parseFloat(document.getElementById('marsSliderGrav') ? document.getElementById('marsSliderGrav').value : 0.38);
+        const compression = gravG * 25.0; // compression in pixels
+
+        // Ground line
+        ctx.strokeStyle = '#64748b';
+        ctx.beginPath(); ctx.moveTo(20, canvas.height - 25); ctx.lineTo(canvas.width - 20, canvas.height - 25); ctx.stroke();
+
+        // 3D Isometric grid plane
+        ctx.strokeStyle = 'rgba(0, 229, 255, 0.1)';
+        for (let i = 0; i < 5; i++) {
+          ctx.beginPath();
+          ctx.moveTo(40 + i * 40, canvas.height - 25);
+          ctx.lineTo(20 + i * 50, canvas.height - 5);
+          ctx.stroke();
+        }
+
+        // Astronaut spinal column representation
+        const cx = canvas.width / 2;
+        const baseY = canvas.height - 35;
+        const headY = 40 + compression;
+
+        // Spine segments (discs)
+        ctx.strokeStyle = '#00e5ff';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(cx, baseY); ctx.lineTo(cx, headY); ctx.stroke();
+
+        const numDiscs = 8;
+        const discSpacing = (baseY - headY) / numDiscs;
+        for (let i = 1; i < numDiscs; i++) {
+          const dy = baseY - (i * discSpacing);
+          ctx.fillStyle = '#00e676';
+          ctx.beginPath();
+          ctx.ellipse(cx, dy, 12, 3 + (gravG * 2), 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Head
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath(); ctx.arc(cx, headY - 12, 10, 0, Math.PI * 2); ctx.fill();
+
+        // Gravity Vector Arrow
+        ctx.strokeStyle = '#ff5722';
+        ctx.lineWidth = 2;
+        const arrowLen = gravG * 40;
+        ctx.beginPath();
+        ctx.moveTo(cx + 45, 60);
+        ctx.lineTo(cx + 45, 60 + arrowLen);
+        ctx.lineTo(cx + 40, 55 + arrowLen);
+        ctx.stroke();
+
+        ctx.fillStyle = '#ff5722';
+        ctx.font = '10px monospace';
+        ctx.fillText(`g = ${(gravG * 9.81).toFixed(1)} m/s²`, cx + 25, 45);
+
+        requestAnimationFrame(drawGrav);
+      }
+      drawGrav();
+    }
+
+    function onMarsParamChange() {
+      const shield = document.getElementById('marsSliderShield').value;
+      const grav = document.getElementById('marsSliderGrav').value;
+      const press = document.getElementById('marsSliderPressure').value;
+      const days = document.getElementById('marsSliderDays').value;
+
+      document.getElementById('marsValShield').textContent = `${shield} cm`;
+      document.getElementById('marsValGrav').textContent = `${parseFloat(grav).toFixed(2)} G`;
+      document.getElementById('marsValPressure').textContent = `${parseFloat(press).toFixed(1)} kPa`;
+      document.getElementById('marsValDays').textContent = `${days} days`;
+
+      document.getElementById('marsShieldingLabel').textContent = `Shield: ${shield} cm`;
+      document.getElementById('marsGravityLabel').textContent = `G: ${parseFloat(grav).toFixed(2)}`;
+      updateRadiationShield();
+
+      fetch(`/api/mars/data?gravity=${grav}&pressure=${press}&shielding_cm=${shield}&days=${days}`)
+        .then(response => {
+          if (!response.ok) throw new Error(`Mars model returned HTTP ${response.status}`);
+          return response.json();
+        })
+        .then(data => {
+          const sim = data.custom_simulation;
+          document.getElementById('marsRadAttenuationText').textContent =
+            `Simplified shielding model: ${sim.shielding_attenuation_pct}% attenuation; estimated ambient rate ${sim.effective_radiation_usv_hr} μSv/h. Not mission dosimetry.`;
+          updateHumanImpact(data);
+        })
+        .catch(error => {
+          document.getElementById('marsRadAttenuationText').textContent = `Mars scenario unavailable: ${error.message}`;
+        });
+    }
+
+    // -----------------------------------------------------------------
+    // TAB 6: 921-ANALYTE EXPLORER
+    // -----------------------------------------------------------------
+    function initBioChart() {
+      const ctx = document.getElementById('bioTrajectoryChart').getContext('2d');
+      bioChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['L-92', 'L-44', 'L-3', 'R+1', 'R+45', 'R+82', 'R+194'],
+          datasets: [
+            {
+              label: 'Crew Member Value',
+              borderColor: '#00e5ff',
+              backgroundColor: 'rgba(0, 229, 255, 0.12)',
+              borderWidth: 2.5,
+              pointBackgroundColor: '#00e5ff',
+              pointRadius: 6,
+              data: [],
+              tension: 0.25
+            },
+            {
+              label: 'Pre-Flight Baseline Mean',
+              borderColor: 'rgba(255, 255, 255, 0.45)',
+              borderDash: [5, 5],
+              borderWidth: 1.5,
+              pointRadius: 0,
+              data: []
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { ticks: { color: '#94a3b8', font: { family: 'monospace' } }, grid: { color: 'rgba(255, 255, 255, 0.05)' } },
+            y: { ticks: { color: '#94a3b8', font: { family: 'monospace' } }, grid: { color: 'rgba(255, 255, 255, 0.05)' } }
+          },
+          plugins: { legend: { labels: { color: '#cbd5e1', font: { family: 'monospace', size: 11 } } } }
+        }
+      });
+    }
+
+    async function updateBioAnalyteChart() {
+      const analyte = document.getElementById('bioAnalyteSelect').value;
+      try {
+        const res = await fetch(`/api/biomarker/timeline?subject=${selectedAstronaut}&analyte=${analyte}`);
+        const data = await res.json();
+        if (data.timeline) {
+          const vals = data.timeline.map(t => t.value);
+          const bases = data.timeline.map(t => t.baseline);
+          bioChart.data.datasets[0].data = vals;
+          bioChart.data.datasets[1].data = bases;
+          bioChart.update();
+
+          const r1Point = data.timeline.find(t => t.timepoint === 'R+1') || data.timeline[3];
+          if (r1Point) {
+            document.getElementById('bioBaselineVal').textContent = r1Point.baseline !== null ? `${r1Point.baseline.toFixed(1)} ${data.unit}` : '--';
+            document.getElementById('bioR1Val').textContent = r1Point.value !== null ? `${r1Point.value.toFixed(1)} ${data.unit}` : '--';
+            document.getElementById('bioFoldChangeVal').textContent = r1Point.fold_change !== null ? `${r1Point.fold_change.toFixed(2)}x` : '--';
+            document.getElementById('bioRangeStatus').textContent = r1Point.out_of_range ? 'OUT OF RANGE ALERT' : 'NOMINAL (WITHIN LIMITS)';
+            document.getElementById('bioRangeStatus').className = r1Point.out_of_range ? 'text-xs font-bold text-red-400 animate-pulse' : 'text-xs font-bold text-emerald-400';
+          }
+        }
+      } catch (e) {
+        console.error('Bio analyte fetch failed', e);
+      }
+    }
+  </script>
+</body>
+</html>
